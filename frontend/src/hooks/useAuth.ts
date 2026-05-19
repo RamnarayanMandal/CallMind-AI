@@ -53,6 +53,18 @@ export function useAuth() {
     toast.info('Logged out');
   }, [clearAuth, router]);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const refreshedUser = await authService.getMe();
+      const { setUser } = useAuthStore.getState();
+      setUser(refreshedUser as any);
+      return refreshedUser;
+    } catch (error) {
+      console.error('Failed to refresh user profile:', error);
+      throw error;
+    }
+  }, []);
+
   return {
     user,
     isAuthenticated: !!user,
@@ -60,5 +72,6 @@ export function useAuth() {
     login,
     register,
     logout,
+    refreshUser,
   };
 }

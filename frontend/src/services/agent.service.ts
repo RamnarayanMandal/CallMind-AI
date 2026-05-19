@@ -2,8 +2,13 @@ import apiClient from '@/lib/axios-client';
 import type { Agent, ApiResponse, PaginatedData } from '@/types';
 
 export interface CreateAgentPayload {
-  name: string; gender?: string; tone?: string; language?: string;
-  systemPrompt?: string; organizationId: string;
+  name: string;
+  gender?: string;
+  tone?: string;
+  language?: string;
+  customInstructions?: string;
+  systemPrompt?: string;
+  organizationId: string;
 }
 
 export const agentService = {

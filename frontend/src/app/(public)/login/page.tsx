@@ -1,4 +1,5 @@
 'use client';
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -9,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Bot, Loader2, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { userRole } from "@/types/admin.types";
 
 const loginSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -19,8 +21,20 @@ const loginSchema = z.object({
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 export default function LoginPage() {
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, user, isAuthenticated } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
+
+  // ── Client-side guard: already logged in → go to dashboard ───
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.role === userRole.ADMIN || user.role === userRole.SUPER_ADMIN) {
+        router.replace('/admin');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [isAuthenticated, user, router]);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -34,6 +48,16 @@ export default function LoginPage() {
       // Error handled in hook toast
     }
   };
+
+  // Don't render form while redirecting
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
 
   return (
     <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center p-6 hero-gradient">

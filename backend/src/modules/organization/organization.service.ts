@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, Inject, forwardRef } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Organization, OrganizationDocument } from './schemas/organization.schema';
@@ -6,6 +6,7 @@ import { CreateOrganizationDto, UpdateOrganizationDto } from './dto/organization
 import { PaginationDto } from '@common/dto/pagination.dto';
 import { BaseRepository } from '@common/repositories/base.repository';
 import { User, UserDocument } from '../auth/schemas/user.schema';
+import { AgentService } from '../agent/agent.service';
 
 @Injectable()
 export class OrganizationRepository extends BaseRepository<OrganizationDocument> {
@@ -19,6 +20,8 @@ export class OrganizationService {
   constructor(
     private readonly repo: OrganizationRepository,
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+    @Inject(forwardRef(() => AgentService))
+    private readonly agentService: AgentService,
   ) {}
 
   async create(dto: CreateOrganizationDto, ownerId: string) {
@@ -39,9 +42,23 @@ export class OrganizationService {
     return org;
   }
 
+  async findById(id: string): Promise<OrganizationDocument | null> {
+    return this.repo.findById(id);
+  }
+
   async update(id: string, dto: UpdateOrganizationDto, ownerId: string) {
     await this.findOne(id, ownerId);
-    return this.repo.updateById(id, dto);
+    const updatedOrg = await this.repo.updateById(id, dto);
+
+    // Automatically regenerate prompts for all active agents under this organization
+    try {
+      await this.agentService.regeneratePromptsForOrganization(id);
+    } catch (err) {
+      // Log error but don't crash organization updates
+      console.error(`Failed to propagate prompt updates for organization ${id}:`, err);
+    }
+
+    return updatedOrg;
   }
 
   async remove(id: string, ownerId: string) {

@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
             Enter your registered email address and we will send you a 6-digit OTP code to reset your password.
           </CardDescription>
         </CardHeader>
-        
+
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
@@ -68,8 +68,8 @@ export default function ForgotPasswordPage() {
               {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : 'Send Reset OTP'}
             </Button>
 
-            <Link 
-              href="/auth/login" 
+            <Link
+              href="/login"
               className="flex items-center justify-center gap-2 text-sm font-semibold text-slate-400 hover:text-white transition-colors mt-2"
             >
               <ArrowLeft className="w-4 h-4" />

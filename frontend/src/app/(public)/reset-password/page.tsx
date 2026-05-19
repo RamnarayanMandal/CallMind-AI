@@ -104,7 +104,7 @@ function ResetPasswordContent() {
         newPassword,
       });
       toast.success(response.message || 'Password reset successfully!');
-      router.push('/auth/login');
+      router.push('/login');
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to reset password. Please verify the code.');
     } finally {

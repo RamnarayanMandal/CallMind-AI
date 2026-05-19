@@ -3,13 +3,14 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { Toaster } from "sonner";
-import { Poppins } from "next/font/google";
+import { Inter } from "next/font/google";
 import { cn } from "@/lib/utils";
 
-const poppins = Poppins({ 
-  subsets: ['latin'], 
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-sans' 
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700", "800"],
+  variable: "--font-sans",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -23,8 +24,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning className={cn("font-sans", poppins.variable)}>
-      <body className="antialiased selection:bg-primary/20">
+    <html lang="en" suppressHydrationWarning className={cn(inter.variable)}>
+      <body className="antialiased min-h-screen bg-background text-foreground">
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"

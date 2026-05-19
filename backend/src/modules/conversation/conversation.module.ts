@@ -14,7 +14,6 @@ import { LLM_PROVIDER } from '@providers/llm/llm.interface';
   providers: [
     ConversationService,
     ConversationRepository,
-    { provide: LLM_PROVIDER, useClass: SarvamLlmProvider },
   ],
   exports: [ConversationService],
 })

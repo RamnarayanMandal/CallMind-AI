@@ -3,14 +3,18 @@ import { WhisperService } from '../ai/whisper.service';
 import { SarvamService } from '../ai/sarvam.service';
 import { TtsService } from '../ai/tts.service';
 import { AgentService } from '../agent/agent.service';
+import { OrganizationService } from '../organization/organization.service';
+import { PromptBuilderService } from '../../services/prompt-builder.service';
 import { ConfigService } from '@nestjs/config';
 
 interface DemoSession {
   agentId: string;
   agentContext: any;
+  orgContext: any;
   audioBuffer: Buffer[];
   isProcessing: boolean;
   startTime: number;
+  systemPrompt: string;
 }
 
 @Injectable()
@@ -23,42 +27,72 @@ export class DemoService {
     private readonly sarvamService: SarvamService,
     private readonly ttsService: TtsService,
     private readonly agentService: AgentService,
+    private readonly orgService: OrganizationService,
+    private readonly promptBuilder: PromptBuilderService,
     private readonly configService: ConfigService,
   ) { }
 
   async initializeSession(clientId: string, agentId: string, emit: (event: string, payload: any) => void) {
     let agentContext: any = {};
+    let orgContext: any = {};
+    let systemPrompt = 'You are a helpful customer support representative.';
+    let introPrompt = 'Hello, how can I help you today?';
+
     try {
       const agent = await this.agentService.findOne(agentId);
       agentContext = agent;
+      if (agent.organizationId) {
+        const org = await this.orgService.findById(agent.organizationId);
+        if (org) {
+          orgContext = org;
+        }
+      }
+
+      // Build the prompts dynamically using prompt builder
+      const built = this.promptBuilder.build(
+        {
+          name: orgContext.name || 'our company',
+          about: orgContext.about || '',
+          productInfo: orgContext.productInfo || '',
+          targetAudience: orgContext.targetAudience || '',
+          industry: orgContext.industry || '',
+          businessGoals: orgContext.businessGoals || '',
+          supportInstructions: orgContext.supportInstructions || '',
+          tone: orgContext.tone || 'professional',
+          website: orgContext.website || '',
+        },
+        {
+          name: agentContext.name || 'Assistant',
+          gender: agentContext.gender || 'female',
+          tone: agentContext.tone || 'professional',
+          language: agentContext.language || 'hi-IN',
+          customInstructions: agentContext.customInstructions || '',
+        }
+      );
+
+      systemPrompt = agentContext.systemPrompt || agentContext.generatedSystemPrompt || built.systemPrompt;
+      introPrompt = built.introPrompt;
+
     } catch (e) {
-      this.logger.warn(`Could not find agent ${agentId}, using default context.`);
+      this.logger.warn(`Could not load full context for agent ${agentId}: ${e.message}`);
     }
 
     this.sessions.set(clientId, {
       agentId,
       agentContext,
+      orgContext,
       audioBuffer: [],
       isProcessing: false,
       startTime: Date.now(),
+      systemPrompt,
     });
 
     try {
-      this.logger.log(`Generating intro for agent ${agentId}`);
+      this.logger.log(`Generating intro for agent ${agentId} using organization-aware prompt`);
       emit('processing-status', { status: 'thinking' });
 
-      // STRICT INTRO PROMPT
-      const introPrompt = `You are a professional company representative starting a voice call.
-Introduce yourself as ${agentContext?.name || 'the assistant'}.
-Based on your system prompt: "${agentContext?.systemPrompt || 'You are a helpful assistant.'}"
-Generate a brief, friendly opening greeting explaining who you are and asking how you can help.
-CRITICAL RULES:
-- NEVER mention AI providers (Sarvam AI, OpenAI, etc).
-- Speak strictly in the language: ${agentContext?.language || 'en-US'}.
-- Tone must be: ${agentContext?.tone || 'professional'}.
-- Provide the exact words you will speak, nothing else.`;
-
-      const aiResponseText = await this.sarvamService.generateResponse(introPrompt, agentContext, true);
+      // Pass the fully dynamic intro prompt to LLM to speak in natural tone
+      const aiResponseText = await this.sarvamService.generateResponse(introPrompt, agentContext, true, orgContext);
       emit('transcript', { role: 'agent', text: aiResponseText });
 
       emit('processing-status', { status: 'speaking' });
@@ -82,7 +116,10 @@ CRITICAL RULES:
     const elapsedMs = Date.now() - session.startTime;
     if (elapsedMs > maxDurationMins * 60 * 1000) {
       this.logger.warn(`Demo session timeout for client ${clientId}`);
-      const timeoutMsg = "Aapka demo session complete ho gaya hai. Dhanyavaad! Your demo session has expired. Thank you!";
+      const timeoutMsg = session.agentContext?.language === 'hi-IN' || session.agentContext?.language === 'hinglish'
+        ? "Aapka demo session complete ho gaya hai. Dhanyavaad! Your demo session has expired. Thank you!"
+        : "Your demo session has expired. Thank you for calling!";
+
       emit('transcript', { role: 'agent', text: timeoutMsg });
       emit('processing-status', { status: 'speaking' });
       try {
@@ -112,21 +149,31 @@ CRITICAL RULES:
       }
 
       emit('transcript', { role: 'user', text });
-
       emit('processing-status', { status: 'thinking' });
 
-      // STRICT CONVERSATION PROMPT
-      const strictPrompt = `User said: "${text}"
-Your Identity: ${session.agentContext?.name || 'Assistant'}
-Your Context: ${session.agentContext?.systemPrompt || 'Helpful assistant'}
-CRITICAL RULES:
-- NEVER break character.
-- NEVER mention you are an AI from OpenAI, Sarvam, or any system.
-- If the user asks unrelated questions, politely redirect them back to the business services.
-- Keep the response conversational, short, and natural for voice.
-Generate your response now:`;
+      // Generate turn-specific conversation guide
+      const turnGuide = this.promptBuilder.buildConversationGuide(
+        {
+          name: session.orgContext?.name || 'our company',
+          about: session.orgContext?.about || '',
+        },
+        {
+          name: session.agentContext?.name || 'Assistant',
+          language: session.agentContext?.language || 'hi-IN',
+          tone: session.agentContext?.tone || 'friendly',
+        }
+      );
 
-      const aiResponseText = await this.sarvamService.generateResponse(strictPrompt, session.agentContext);
+      const strictPrompt = `
+${session.systemPrompt}
+
+${turnGuide}
+
+User said: "${text}"
+
+Generate response now:`;
+
+      const aiResponseText = await this.sarvamService.generateResponse(strictPrompt, session.agentContext, false, session.orgContext);
       emit('transcript', { role: 'agent', text: aiResponseText });
 
       emit('processing-status', { status: 'speaking' });

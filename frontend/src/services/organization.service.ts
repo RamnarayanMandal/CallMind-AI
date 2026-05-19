@@ -2,7 +2,15 @@ import apiClient from '@/lib/axios-client';
 import type { Organization, ApiResponse, PaginatedData } from '@/types';
 
 export interface CreateOrgPayload {
-  name: string; about: string; productInfo: string; website?: string; industry?: string;
+  name: string;
+  about: string;
+  productInfo: string;
+  website?: string;
+  industry?: string;
+  targetAudience?: string;
+  businessGoals?: string;
+  supportInstructions?: string;
+  tone?: string;
 }
 
 export const organizationService = {

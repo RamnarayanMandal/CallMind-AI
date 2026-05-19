@@ -55,7 +55,7 @@ apiClient.interceptors.response.use(
       originalRequest._retry = true;
       isRefreshing = true;
 
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = typeof window !== 'undefined' ? localStorage.getItem('refreshToken') : null;
 
       try {
         const response = await axios.post(`${API_URL}/auth/refresh`, {}, {
@@ -64,8 +64,10 @@ apiClient.interceptors.response.use(
 
         const { accessToken, refreshToken: newRefreshToken } = response.data;
 
-        localStorage.setItem('accessToken', accessToken);
-        localStorage.setItem('refreshToken', newRefreshToken);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('accessToken', accessToken);
+          localStorage.setItem('refreshToken', newRefreshToken);
+        }
 
         processQueue(null, accessToken);
         originalRequest.headers.Authorization = `Bearer ${accessToken}`;
@@ -75,7 +77,7 @@ apiClient.interceptors.response.use(
         if (typeof window !== 'undefined') {
           localStorage.removeItem('accessToken');
           localStorage.removeItem('refreshToken');
-          window.location.href = '/auth/login';
+          window.location.href = '/login';
         }
         return Promise.reject(refreshError);
       } finally {

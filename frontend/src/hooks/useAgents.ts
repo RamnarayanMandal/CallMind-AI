@@ -15,7 +15,7 @@ export function useAgents(organizationId: string, page = 1, limit = 10) {
   const createAgentMutation = useMutation({
     mutationFn: (payload: CreateAgentPayload) => agentService.create(payload),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agents', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
       toast.success('AI Agent created successfully');
     },
     onError: (error: any) => {
@@ -23,10 +23,22 @@ export function useAgents(organizationId: string, page = 1, limit = 10) {
     },
   });
 
+  const updateAgentMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: string; payload: Partial<CreateAgentPayload> }) =>
+      agentService.update(id, payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
+      toast.success('Agent updated successfully');
+    },
+    onError: (error: any) => {
+      toast.error(error.response?.data?.message || 'Failed to update agent');
+    },
+  });
+
   const deleteAgentMutation = useMutation({
     mutationFn: (id: string) => agentService.remove(id),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['agents', organizationId] });
+      queryClient.invalidateQueries({ queryKey: ['agents'] });
       toast.success('Agent deleted successfully');
     },
     onError: (error: any) => {
@@ -40,6 +52,8 @@ export function useAgents(organizationId: string, page = 1, limit = 10) {
     isLoading: agentsQuery.isLoading,
     createAgent: createAgentMutation.mutateAsync,
     isCreating: createAgentMutation.isPending,
+    updateAgent: updateAgentMutation.mutateAsync,
+    isUpdating: updateAgentMutation.isPending,
     deleteAgent: deleteAgentMutation.mutateAsync,
     refetch: agentsQuery.refetch,
   };

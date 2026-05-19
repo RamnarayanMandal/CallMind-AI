@@ -16,6 +16,7 @@ interface AuthState {
   accessToken: string | null;
   refreshToken: string | null;
   setAuth: (user: User, accessToken: string, refreshToken: string) => void;
+  setUser: (user: User) => void;
   clearAuth: () => void;
 }
 
@@ -36,6 +37,13 @@ export const useAuthStore = create<AuthState>()(
           localStorage.setItem('refreshToken', refreshToken);
         }
         set({ user, accessToken, refreshToken });
+      },
+
+      setUser: (user) => {
+        if (typeof window !== 'undefined') {
+          document.cookie = `userRole=${user.role}; path=/; Max-Age=604800; SameSite=Lax; Secure`;
+        }
+        set({ user });
       },
 
       clearAuth: () => {

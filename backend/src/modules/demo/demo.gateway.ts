@@ -42,6 +42,9 @@ export class DemoGateway implements OnGatewayConnection, OnGatewayDisconnect {
     try {
       this.logger.log(`Starting demo for agent ${data.agentId} on client ${client.id}`);
       
+      // Force clean up any existing demo session for this client to invalidate cache and context memory
+      this.demoService.cleanupSession(client.id);
+      
       const emit = (event: string, payload: any) => client.emit(event, payload);
       
       client.emit('demo-started', {

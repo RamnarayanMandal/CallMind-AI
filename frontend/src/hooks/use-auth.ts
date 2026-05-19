@@ -29,7 +29,7 @@ export function useAuth() {
 
   const registerMutation = useMutation({
     mutationFn: (payload: RegisterPayload) => authService.register(payload),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       authService.setToken(data.accessToken);
       queryClient.setQueryData(['auth-me'], data.user);
       toast.success('Account created successfully');

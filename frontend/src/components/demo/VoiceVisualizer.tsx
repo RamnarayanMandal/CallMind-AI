@@ -63,7 +63,7 @@ export const VoiceVisualizer: React.FC<VoiceVisualizerProps> = ({ status, isReco
         
         {/* Central orb */}
         <motion.div
-          animate={getVariants()}
+          animate={getVariants() as any}
           className={`w-24 h-24 rounded-full shadow-lg z-10 flex items-center justify-center ${getColorClass()}`}
         >
           {status === 'idle' && (

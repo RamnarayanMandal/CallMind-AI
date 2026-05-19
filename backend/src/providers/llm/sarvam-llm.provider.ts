@@ -19,7 +19,7 @@ export class SarvamLlmProvider implements ILlmProvider {
       const response = await axios.post(
         `${this.apiUrl}/chat/completions`,
         {
-          model: 'sarvam-2b-lm',
+          model: 'sarvam-m',
           messages,
           temperature,
           max_tokens: 500,

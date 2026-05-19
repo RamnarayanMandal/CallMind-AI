@@ -46,6 +46,10 @@ export interface Organization {
   productInfo: string;
   website?: string;
   industry?: string;
+  targetAudience?: string;
+  businessGoals?: string;
+  supportInstructions?: string;
+  tone?: string;
   ownerId: string;
   isActive: boolean;
   createdAt: string;
@@ -56,8 +60,10 @@ export interface Agent {
   _id: string;
   name: string;
   gender: 'male' | 'female';
-  tone: 'professional' | 'friendly' | 'formal' | 'casual';
+  tone: 'professional' | 'friendly' | 'formal' | 'casual' | 'empathetic';
   language: string;
+  customInstructions?: string;
+  generatedSystemPrompt?: string;
   systemPrompt?: string;
   organizationId: string;
   isActive: boolean;

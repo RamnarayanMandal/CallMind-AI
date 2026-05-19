@@ -7,15 +7,37 @@ const badgeVariants = cva(
   {
     variants: {
       variant: {
+        /* Brand blue — default / primary */
         default:
           "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+
+        /* Brand purple — secondary */
         secondary:
           "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+
+        /* Destructive — minimal red, kept for errors only */
         destructive:
           "border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80",
-        outline: "text-foreground",
-        success: "border-transparent bg-success text-success-foreground hover:bg-success/80",
-        warning: "border-transparent bg-warning text-warning-foreground hover:bg-warning/80",
+
+        /* Outline — uses blue ring on hover */
+        outline:
+          "text-foreground border-border hover:border-primary/50 hover:text-primary",
+
+        /* Success → brand blue (maps to primary) */
+        success:
+          "border-transparent bg-primary/15 text-primary hover:bg-primary/25",
+
+        /* Warning → brand purple (maps to secondary) */
+        warning:
+          "border-transparent bg-secondary/15 text-secondary hover:bg-secondary/25",
+
+        /* Blue gradient badge */
+        gradient:
+          "border-transparent bg-gradient-brand text-white hover:opacity-90",
+
+        /* Subtle muted */
+        muted:
+          "border-border bg-muted text-muted-foreground hover:bg-muted/80",
       },
     },
     defaultVariants: {

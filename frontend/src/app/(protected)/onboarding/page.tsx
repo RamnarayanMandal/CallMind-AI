@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
-import { Loader2, Rocket, Building2, MessageSquare } from "lucide-react";
+import { Loader2, Rocket, Building2, MessageSquare, Globe } from "lucide-react";
 import { toast } from "sonner";
 import apiClient from "@/lib/axios-client";
 
@@ -19,6 +19,8 @@ const onboardingSchema = z.object({
   name: z.string().min(2, "Organization name must be at least 2 characters"),
   about: z.string().min(10, "Please provide a brief description of your business"),
   productInfo: z.string().min(10, "Please describe the products or services you want the AI to handle"),
+  industry: z.string().optional(),
+  website: z.string().optional(),
 });
 
 type OnboardingFormValues = z.infer<typeof onboardingSchema>;
@@ -30,7 +32,7 @@ export default function OnboardingPage() {
 
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
-    defaultValues: { name: "", about: "", productInfo: "" },
+    defaultValues: { name: "", about: "", productInfo: "", industry: "", website: "" },
   });
 
   const onSubmit = async (data: OnboardingFormValues) => {
@@ -81,6 +83,27 @@ export default function OnboardingPage() {
                   )}
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="industry">Industry (Optional)</Label>
+                    <Input
+                      id="industry"
+                      placeholder="e.g. Technology, Healthcare"
+                      className="h-12 rounded-xl bg-neutral-900/50"
+                      {...form.register("industry")}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="website">Website (Optional)</Label>
+                    <Input
+                      id="website"
+                      placeholder="https://example.com"
+                      className="h-12 rounded-xl bg-neutral-900/50"
+                      {...form.register("website")}
+                    />
+                  </div>
+                </div>
+
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
                     <MessageSquare className="h-4 w-4 text-primary" />
@@ -115,7 +138,7 @@ export default function OnboardingPage() {
               </div>
             </CardContent>
             <CardFooter className="p-8 pt-0">
-              <Button type="submit" className="w-full h-12 rounded-xl font-bold text-lg" disabled={isLoading}>
+              <Button type="submit" className="w-full h-12 py-2 px-6 rounded-xl font-bold md:text-lg sm:text-base cursor-pointer" disabled={isLoading}>
                 {isLoading ? (
                   <>
                     <Loader2 className="h-5 w-5 animate-spin mr-2" />

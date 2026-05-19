@@ -22,6 +22,8 @@ import { MailModule } from './modules/mail/mail.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { ProvidersModule } from './providers/providers.module';
+
 
 @Module({
   imports: [
@@ -85,6 +87,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
     AdminModule,
     MailModule,
     AuditModule,
+    ProvidersModule,
   ],
   providers: [
     {
