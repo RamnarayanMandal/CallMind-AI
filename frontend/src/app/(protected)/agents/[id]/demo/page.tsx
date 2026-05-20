@@ -33,8 +33,10 @@ export default function AgentDemoPage() {
     startRecording,
     stopRecording
   } = useVoiceRecorder((audioBuffer) => {
-    if (isConnected) {
+    if (isConnected && status !== 'speaking') {
       sendAudio(audioBuffer);
+    } else if (status === 'speaking') {
+      toast.warning("Recording ignored because AI is speaking.");
     }
   });
 

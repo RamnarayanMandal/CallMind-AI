@@ -36,6 +36,8 @@ import {
 import { Play, Bot, Plus, Loader2, MessageSquare, Globe, Volume2, Trash2, Sparkles, Building2, Pencil } from 'lucide-react';
 import { Agent, Organization } from '@/types';
 import { useRouter } from 'next/navigation';
+import { LANGUAGES } from '@/components/demo/DemoWizard';
+
 
 export default function AgentsPage() {
   const router = useRouter();
@@ -63,6 +65,8 @@ export default function AgentsPage() {
   const [gender, setGender] = useState('female');
   const [tone, setTone] = useState('professional');
   const [customInstructions, setCustomInstructions] = useState('');
+
+
 
   // Fetch organization data for dynamic previewing (Create Dialog)
   useEffect(() => {
@@ -255,11 +259,11 @@ If you do not know the answer, say: "Main aapko is matter mein help karne ki poo
                           <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="hi-IN">Hindi</SelectItem>
-                          <SelectItem value="hinglish">Hinglish</SelectItem>
-                          <SelectItem value="en-US">English (US)</SelectItem>
-                          <SelectItem value="en-IN">English (India)</SelectItem>
-                          <SelectItem value="es-ES">Spanish</SelectItem>
+                         {LANGUAGES.map(lang => (
+                            <SelectItem key={lang.code} value={lang.code}>
+                              {lang.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

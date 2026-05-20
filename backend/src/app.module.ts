@@ -23,7 +23,8 @@ import { AuditModule } from './modules/audit/audit.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ProvidersModule } from './providers/providers.module';
-
+import { RedisModule } from './modules/redis/redis.module';
+import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 
 @Module({
   imports: [
@@ -88,6 +89,8 @@ import { ProvidersModule } from './providers/providers.module';
     MailModule,
     AuditModule,
     ProvidersModule,
+    RedisModule,
+    KnowledgeBaseModule,
   ],
   providers: [
     {

@@ -8,6 +8,8 @@ import { BaseRepository } from '@common/repositories/base.repository';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { AgentService } from '../agent/agent.service';
 
+import { OrgContextCacheService } from '../redis/org-context-cache.service';
+
 @Injectable()
 export class OrganizationRepository extends BaseRepository<OrganizationDocument> {
   constructor(@InjectModel(Organization.name) model: Model<OrganizationDocument>) {
@@ -22,6 +24,7 @@ export class OrganizationService {
     @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
     @Inject(forwardRef(() => AgentService))
     private readonly agentService: AgentService,
+    private readonly cacheService: OrgContextCacheService,
   ) {}
 
   async create(dto: CreateOrganizationDto, ownerId: string) {
@@ -53,6 +56,8 @@ export class OrganizationService {
     // Automatically regenerate prompts for all active agents under this organization
     try {
       await this.agentService.regeneratePromptsForOrganization(id);
+      // Invalidate the cache to force recalculation on next call
+      await this.cacheService.invalidateOrgCache(id);
     } catch (err) {
       // Log error but don't crash organization updates
       console.error(`Failed to propagate prompt updates for organization ${id}:`, err);
@@ -63,6 +68,8 @@ export class OrganizationService {
 
   async remove(id: string, ownerId: string) {
     await this.findOne(id, ownerId);
+    // Invalidate the cache
+    await this.cacheService.invalidateOrgCache(id);
     return this.repo.deleteById(id);
   }
 }

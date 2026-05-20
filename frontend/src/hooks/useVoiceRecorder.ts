@@ -10,10 +10,18 @@ export function useVoiceRecorder(onAudioReady: (audio: ArrayBuffer) => void) {
 
   const startRecording = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: 1,
+          sampleRate: 16000,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        }
+      });
       streamRef.current = stream;
       
-      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
+      const recorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
       mediaRecorder.current = recorder;
       audioChunks.current = [];
 
@@ -24,7 +32,7 @@ export function useVoiceRecorder(onAudioReady: (audio: ArrayBuffer) => void) {
       };
 
       recorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunks.current, { type: 'audio/webm;codecs=opus' });
         const arrayBuffer = await audioBlob.arrayBuffer();
         onAudioReady(arrayBuffer);
         audioChunks.current = [];

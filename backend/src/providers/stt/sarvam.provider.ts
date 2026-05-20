@@ -24,7 +24,7 @@ export class SarvamSttProvider implements ISttProvider {
       const baseUrl = sarvamUrl.replace(/\/v1\/?$/, '');
       const formData = new FormData();
       formData.append('file', new Blob([audioBuffer as any], { type: 'audio/webm' }), 'audio.webm');
-      formData.append('model', 'saaras:v1');
+      formData.append('model', 'saaras:v3');
       
       // Default to Hindi/Hinglish (hi-IN)
       const langCode = language || 'hi-IN';

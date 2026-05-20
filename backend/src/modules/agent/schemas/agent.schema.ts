@@ -17,6 +17,9 @@ export enum AgentLanguage {
   HI_IN = 'hi-IN',
   HINGLISH = 'hinglish',
   ES_ES = 'es-ES',
+  
+
+
 }
 
 @Schema({ timestamps: true, collection: 'agents' })

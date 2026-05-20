@@ -6,21 +6,40 @@ import { AgentService } from '../agent/agent.service';
 import { OrganizationService } from '../organization/organization.service';
 import { PromptBuilderService } from '../../services/prompt-builder.service';
 import { ConfigService } from '@nestjs/config';
+import { RedisService } from '../redis/redis.service';
+import { OrgContextCacheService } from '../redis/org-context-cache.service';
+import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
+import { TranscriptSanitizerService } from '../ai/transcript-sanitizer.service';
+import { ResponseCompletenessValidatorService } from '../ai/response-completeness-validator.service';
+import { ConversationOrchestratorService } from '../ai/conversation-orchestrator.service';
+import { LlmMessage } from '@providers/ai/ai.provider';
 
-interface DemoSession {
+export interface DemoSession {
   agentId: string;
   agentContext: any;
   orgContext: any;
-  audioBuffer: Buffer[];
+  systemPrompt: string;
+  /**
+   * Conversation history: strictly alternating [user, assistant, user, assistant, ...]
+   * NEVER contains system messages.
+   * NEVER starts with assistant.
+   * NEVER has consecutive duplicate roles.
+   */
+  history: LlmMessage[];
   isProcessing: boolean;
   startTime: number;
-  systemPrompt: string;
+
+  // Orchestrator Stage & Lead Metadata fields stored in Redis
+  intent?: string;
+  stage?: string;
+  lastFollowUp?: string;
+  leadStatus?: string;
+  summary?: string;
 }
 
 @Injectable()
 export class DemoService {
   private readonly logger = new Logger(DemoService.name);
-  private sessions: Map<string, DemoSession> = new Map();
 
   constructor(
     private readonly whisperService: WhisperService,
@@ -30,169 +49,286 @@ export class DemoService {
     private readonly orgService: OrganizationService,
     private readonly promptBuilder: PromptBuilderService,
     private readonly configService: ConfigService,
-  ) { }
+    private readonly redisService: RedisService,
+    private readonly orgCacheService: OrgContextCacheService,
+    private readonly kbService: KnowledgeBaseService,
+    private readonly transcriptSanitizer: TranscriptSanitizerService,
+    private readonly completenessValidator: ResponseCompletenessValidatorService,
+    private readonly orchestrator: ConversationOrchestratorService,
+  ) {}
 
-  async initializeSession(clientId: string, agentId: string, emit: (event: string, payload: any) => void) {
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  SESSION INITIALIZATION
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async initializeSession(
+    clientId: string,
+    agentId: string,
+    emit: (event: string, payload: any) => void,
+  ) {
     let agentContext: any = {};
     let orgContext: any = {};
     let systemPrompt = 'You are a helpful customer support representative.';
     let introPrompt = 'Hello, how can I help you today?';
 
     try {
-      const agent = await this.agentService.findOne(agentId);
-      agentContext = agent;
-      if (agent.organizationId) {
-        const org = await this.orgService.findById(agent.organizationId);
-        if (org) {
-          orgContext = org;
+      // 1. Try Redis org cache (24h TTL — avoids MongoDB on every call start)
+      const cachedProfile = await this.orgCacheService.getCachedProfileByAgentId(agentId);
+      if (cachedProfile) {
+        agentContext = cachedProfile.agentContext;
+        orgContext   = cachedProfile.orgContext;
+        systemPrompt = cachedProfile.systemPrompt;
+        introPrompt  = cachedProfile.introPrompt;
+        this.logger.log(`[${clientId}] Profile cache HIT for agent ${agentId}`);
+      } else {
+        // 2. Cache miss — load from MongoDB and compile
+        const agent = await this.agentService.findOne(agentId);
+        agentContext = agent;
+        if (agent.organizationId) {
+          const org = await this.orgService.findById(agent.organizationId);
+          if (org) orgContext = org;
         }
+
+        const profile = await this.orgCacheService.buildAndCacheProfile(
+          agentContext.organizationId || 'default',
+          agentId,
+          orgContext,
+          agentContext,
+        );
+        systemPrompt = profile.systemPrompt;
+        introPrompt  = profile.introPrompt;
+        this.logger.log(`[${clientId}] Compiled and cached profile for agent ${agentId}`);
       }
-
-      // Build the prompts dynamically using prompt builder
-      const built = this.promptBuilder.build(
-        {
-          name: orgContext.name || 'our company',
-          about: orgContext.about || '',
-          productInfo: orgContext.productInfo || '',
-          targetAudience: orgContext.targetAudience || '',
-          industry: orgContext.industry || '',
-          businessGoals: orgContext.businessGoals || '',
-          supportInstructions: orgContext.supportInstructions || '',
-          tone: orgContext.tone || 'professional',
-          website: orgContext.website || '',
-        },
-        {
-          name: agentContext.name || 'Assistant',
-          gender: agentContext.gender || 'female',
-          tone: agentContext.tone || 'professional',
-          language: agentContext.language || 'hi-IN',
-          customInstructions: agentContext.customInstructions || '',
-        }
-      );
-
-      systemPrompt = agentContext.systemPrompt || agentContext.generatedSystemPrompt || built.systemPrompt;
-      introPrompt = built.introPrompt;
-
     } catch (e) {
-      this.logger.warn(`Could not load full context for agent ${agentId}: ${e.message}`);
+      this.logger.warn(`[${clientId}] Profile load failed for agent ${agentId}: ${e.message}`);
     }
 
-    this.sessions.set(clientId, {
+    // 3. Initialize session with EMPTY history — history starts only after first real user turn
+    const sessionKey = `call:${clientId}`;
+    const newSession: DemoSession = {
       agentId,
       agentContext,
       orgContext,
-      audioBuffer: [],
+      systemPrompt,
+      history: [],        // ← EMPTY: intro is NOT stored in conversation history
       isProcessing: false,
       startTime: Date.now(),
-      systemPrompt,
-    });
+      // Seed default Orchestrator Stages
+      intent: 'unknown',
+      stage: 'intro',
+      leadStatus: 'unknown',
+      summary: 'New conversation initiated.',
+      lastFollowUp: 'Aap kis tarah ka business run karte hain, aur main aapki support calling automate karne mein kaise help kar sakti hoon?',
+    };
 
+    await this.redisService.set(sessionKey, newSession, 3600);
+
+    // 4. Generate intro greeting
     try {
-      this.logger.log(`Generating intro for agent ${agentId} using organization-aware prompt`);
       emit('processing-status', { status: 'thinking' });
 
-      // Pass the fully dynamic intro prompt to LLM to speak in natural tone
-      const aiResponseText = await this.sarvamService.generateResponse(introPrompt, agentContext, true, orgContext);
-      emit('transcript', { role: 'agent', text: aiResponseText });
+      const introText = await this.sarvamService.generateIntroResponse(
+        introPrompt,
+        agentContext,
+        orgContext,
+      );
 
+      emit('transcript', { role: 'agent', text: introText });
       emit('processing-status', { status: 'speaking' });
-      const audioResponse = await this.ttsService.generateSpeech(aiResponseText);
 
+      const audioResponse = await this.ttsService.generateSpeech(introText);
       emit('audio-response', audioResponse);
       emit('processing-status', { status: 'idle' });
     } catch (error) {
-      this.logger.error('Error generating intro', error);
+      this.logger.error(`[${clientId}] Intro generation error: ${error.message}`);
       emit('processing-status', { status: 'idle' });
-      emit('error', { message: 'Failed to generate introduction.' });
     }
   }
 
-  async processAudioStream(clientId: string, audioChunk: Buffer, emit: (event: string, payload: any) => void) {
-    const session = this.sessions.get(clientId);
-    if (!session) return;
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  AUDIO PROCESSING
+  // ─────────────────────────────────────────────────────────────────────────────
 
-    // Demo Timer Logic
-    const maxDurationMins = this.configService.get<number>('DEMO_MAX_DURATION_MINUTES', 3);
-    const elapsedMs = Date.now() - session.startTime;
-    if (elapsedMs > maxDurationMins * 60 * 1000) {
-      this.logger.warn(`Demo session timeout for client ${clientId}`);
-      const timeoutMsg = session.agentContext?.language === 'hi-IN' || session.agentContext?.language === 'hinglish'
-        ? "Aapka demo session complete ho gaya hai. Dhanyavaad! Your demo session has expired. Thank you!"
-        : "Your demo session has expired. Thank you for calling!";
-
-      emit('transcript', { role: 'agent', text: timeoutMsg });
-      emit('processing-status', { status: 'speaking' });
-      try {
-        const audioResponse = await this.ttsService.generateSpeech(timeoutMsg);
-        emit('audio-response', audioResponse);
-      } catch (e) { }
-      emit('processing-status', { status: 'idle' });
-      emit('demo-stopped', { reason: 'timeout' });
-      this.cleanupSession(clientId);
+  async processAudioStream(
+    clientId: string,
+    audioChunk: Buffer,
+    emit: (event: string, payload: any) => void,
+  ) {
+    const sessionKey = `call:${clientId}`;
+    const session = await this.redisService.get<DemoSession>(sessionKey);
+    if (!session) {
+      this.logger.warn(`[${clientId}] No session found — ignoring audio chunk`);
       return;
     }
 
-    session.audioBuffer.push(audioChunk);
-    if (session.isProcessing) return;
+    // ── Demo timer guard ────────────────────────────────────────────────────
+    const maxDurationMins = this.configService.get<number>('DEMO_MAX_DURATION_MINUTES', 3);
+    if (Date.now() - session.startTime > maxDurationMins * 60 * 1000) {
+      await this.handleTimeout(clientId, session, emit);
+      return;
+    }
+
+    // ── Deduplication guard ─────────────────────────────────────────────────
+    if (session.isProcessing) {
+      this.logger.warn(`[${clientId}] Duplicate audio chunk while processing — skipped`);
+      return;
+    }
+
+    // Mark processing — prevent concurrent overlaps
     session.isProcessing = true;
+    await this.redisService.set(sessionKey, session, 3600);
 
     try {
-      const fullBuffer = Buffer.concat(session.audioBuffer);
-      session.audioBuffer = [];
-
+      // ── STT ────────────────────────────────────────────────────────────────
       emit('processing-status', { status: 'listening' });
-      const text = await this.whisperService.transcribeAudio(fullBuffer);
+      const rawTranscript = await this.whisperService.transcribeAudio(audioChunk);
 
-      if (!text || text.trim() === '') {
-        session.isProcessing = false;
+      // Clean transcript before it enters the AI pipeline
+      const userText = this.transcriptSanitizer.sanitize(rawTranscript);
+
+      if (!userText) {
+        this.logger.debug(`[${clientId}] Empty transcript after sanitization — skipping turn`);
         return;
       }
 
-      emit('transcript', { role: 'user', text });
+      emit('transcript', { role: 'user', text: userText });
       emit('processing-status', { status: 'thinking' });
 
-      // Generate turn-specific conversation guide
-      const turnGuide = this.promptBuilder.buildConversationGuide(
-        {
-          name: session.orgContext?.name || 'our company',
-          about: session.orgContext?.about || '',
-        },
-        {
-          name: session.agentContext?.name || 'Assistant',
-          language: session.agentContext?.language || 'hi-IN',
-          tone: session.agentContext?.tone || 'friendly',
+      // ── Sales Stage Orchestrator ───────────────────────────────────────────
+      const orchestratorResult = this.orchestrator.orchestrate(userText, {
+        intent: session.intent,
+        stage: session.stage,
+        lastFollowUp: session.lastFollowUp,
+        leadStatus: session.leadStatus as any,
+        summary: session.summary,
+      });
+
+      // Update active orchestrator stage in session context
+      session.intent = orchestratorResult.newState.intent;
+      session.stage = orchestratorResult.newState.stage;
+      session.leadStatus = orchestratorResult.newState.leadStatus;
+      session.summary = orchestratorResult.newState.summary;
+      session.lastFollowUp = orchestratorResult.newState.lastFollowUp;
+
+      // ── RAG lookup ─────────────────────────────────────────────────────────
+      let ragContext: string | undefined;
+      const orgId = session.orgContext?._id?.toString() || session.orgContext?.id;
+      if (orgId) {
+        try {
+          const matchedFaqs = await this.kbService.search(orgId, userText, 2);
+          if (matchedFaqs?.length > 0) {
+            ragContext = matchedFaqs
+              .map((faq) => `Q: ${faq.question}\nA: ${faq.answer}`)
+              .join('\n\n');
+            this.logger.debug(`[${clientId}] RAG: ${matchedFaqs.length} FAQ match(es) for "${userText}"`);
+          }
+        } catch (err) {
+          this.logger.warn(`[${clientId}] RAG lookup error: ${err.message}`);
         }
+      }
+
+      // Compile current stage guidelines into dynamic turn guide instructions
+      const turnGuide = `
+${orchestratorResult.directives}
+
+CRITICAL: Keep your response short and conversational (max 2 sentences). Sound naturally human. Do NOT repeat marketing slogans or intros.`;
+
+      // ── AI generation ──────────────────────────────────────────────────────
+      const rawAiResponseText = await this.sarvamService.generateTurnResponse(
+        userText,
+        session.systemPrompt,
+        session.history,        // ← prior turns only: [user, assistant, user, assistant, ...]
+        session.agentContext,
+        session.orgContext,
+        ragContext,
+        turnGuide,
       );
 
-      const strictPrompt = `
-${session.systemPrompt}
+      // ── Response Completeness Validation & HEAL Sequence ───────────────────
+      // Guarantees response never ends cut off, and seamlessly attaches contextual follow-ups!
+      const healedResponseText = this.completenessValidator.validateAndHeal(
+        rawAiResponseText,
+        orchestratorResult.suggestedFollowUp,
+      );
 
-${turnGuide}
+      // ── Update history atomically ──────────────────────────────────────────
+      // Re-fetch session in case another write happened during AI generation
+      const freshSession = await this.redisService.get<DemoSession>(sessionKey);
+      if (freshSession) {
+        // Update updated orchestrator state onto fresh session object
+        freshSession.intent = session.intent;
+        freshSession.stage = session.stage;
+        freshSession.leadStatus = session.leadStatus;
+        freshSession.summary = session.summary;
+        freshSession.lastFollowUp = session.lastFollowUp;
 
-User said: "${text}"
+        // Append BOTH turns together — guarantees alternation
+        freshSession.history.push({ role: 'user',      content: userText });
+        freshSession.history.push({ role: 'assistant', content: healedResponseText });
 
-Generate response now:`;
+        // Trim history to last 20 turns to prevent token bloat
+        if (freshSession.history.length > 20) {
+          freshSession.history = freshSession.history.slice(-20);
+        }
 
-      const aiResponseText = await this.sarvamService.generateResponse(strictPrompt, session.agentContext, false, session.orgContext);
-      emit('transcript', { role: 'agent', text: aiResponseText });
+        freshSession.isProcessing = false;
+        await this.redisService.set(sessionKey, freshSession, 3600);
+      }
 
+      // ── Emit response ──────────────────────────────────────────────────────
+      emit('transcript', { role: 'agent', text: healedResponseText });
       emit('processing-status', { status: 'speaking' });
-      const audioResponse = await this.ttsService.generateSpeech(aiResponseText);
 
+      const audioResponse = await this.ttsService.generateSpeech(healedResponseText);
       emit('audio-response', audioResponse);
       emit('processing-status', { status: 'idle' });
 
     } catch (error) {
-      this.logger.error('Error in audio pipeline', error);
+      this.logger.error(`[${clientId}] Audio pipeline error: ${error.message}`, error.stack);
       emit('error', { message: 'Pipeline error occurred.' });
     } finally {
-      if (this.sessions.has(clientId)) {
-        session.isProcessing = false;
+      // Always release the processing lock
+      const lockSession = await this.redisService.get<DemoSession>(sessionKey);
+      if (lockSession && lockSession.isProcessing) {
+        lockSession.isProcessing = false;
+        await this.redisService.set(sessionKey, lockSession, 3600);
       }
     }
   }
 
-  cleanupSession(clientId: string) {
-    this.sessions.delete(clientId);
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  CLEANUP
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  async cleanupSession(clientId: string) {
+    await this.redisService.del(`call:${clientId}`);
+    this.logger.log(`[${clientId}] Session cleaned up`);
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  //  PRIVATE HELPERS
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private async handleTimeout(
+    clientId: string,
+    session: DemoSession,
+    emit: (event: string, payload: any) => void,
+  ) {
+    this.logger.warn(`[${clientId}] Demo session timed out`);
+    const lang = session.agentContext?.language;
+    const timeoutMsg =
+      lang === 'hi-IN' || lang === 'hinglish'
+        ? 'Aapka demo session complete ho gaya hai. Dhanyavaad aur apna qeemti waqt dene ke liye shukriya!'
+        : 'Your demo session has ended. Thank you for your time!';
+
+    emit('transcript', { role: 'agent', text: timeoutMsg });
+    emit('processing-status', { status: 'speaking' });
+    try {
+      const audio = await this.ttsService.generateSpeech(timeoutMsg);
+      emit('audio-response', audio);
+    } catch {}
+    emit('processing-status', { status: 'idle' });
+    emit('demo-stopped', { reason: 'timeout' });
+    await this.cleanupSession(clientId);
   }
 }

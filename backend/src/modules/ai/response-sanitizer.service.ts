@@ -5,53 +5,51 @@ export class ResponseSanitizerService {
   private readonly logger = new Logger(ResponseSanitizerService.name);
 
   /**
-   * Cleans AI generated text outputs before exposing them to the frontend, websocket,
-   * transcription tables, or TTS generation engines.
-   * Extracts and strips internal reasoning blocks, XML tags, markdown elements,
-   * and non-verbal symbols.
-   *
-   * @param rawResponse The raw string response returned from the LLM provider.
-   * @returns Cleaned conversational dialogue fit for voice synthesis and user display.
+   * Cleans AI-generated text before it reaches TTS or the frontend.
+   * Strips: reasoning blocks, XML tags, markdown, debug text,
+   * transcript-repeat patterns, and internal metadata.
    */
   sanitize(rawResponse: string): string {
     if (!rawResponse) return '';
 
     let cleaned = rawResponse;
 
-    // 1. Remove XML/HTML style <think>...</think> tags and all content inside them (reasoning process)
+    // 1. Remove <think>...</think> reasoning blocks (Claude, DeepSeek style)
     cleaned = cleaned.replace(/<think>[\s\S]*?<\/think>/gi, '');
 
-    // 2. Strip any other HTML or XML formatting tags (e.g. <reasoning>, <thought>, etc.)
-    cleaned = cleaned.replace(/<[A-Za-z0-9_#-]+[\s\S]*?>[\s\S]*?<\/[A-Za-z0-9_#-]+>/g, '');
+    // 2. Remove any other XML/HTML paired tags with their content
+    cleaned = cleaned.replace(/<[A-Za-z][A-Za-z0-9_-]*[\s\S]*?>[\s\S]*?<\/[A-Za-z][A-Za-z0-9_-]*>/g, '');
+
+    // 3. Strip remaining self-closing or unpaired HTML/XML tags
     cleaned = cleaned.replace(/<[^>]+>/g, '');
 
-    // 3. Remove Markdown notation symbols (asterisks, hashtags, dashes at starts of lines, backticks)
-    // Strip bold/italic markdown symbols
-    cleaned = cleaned.replace(/[\*_`~]/g, '');
-    // Strip headers
+    // 4. Remove Markdown symbols
+    cleaned = cleaned.replace(/[*_`~]/g, '');
     cleaned = cleaned.replace(/^#+\s+/gm, '');
-    // Strip list bullet markers
-    cleaned = cleaned.replace(/^[\s]*[-*+]\s+/gm, '');
-    cleaned = cleaned.replace(/^[\s]*\d+\.\s+/gm, '');
+    cleaned = cleaned.replace(/^\s*[-*+]\s+/gm, '');
+    cleaned = cleaned.replace(/^\s*\d+\.\s+/gm, '');
 
-    // 4. Clean up structural/non-dialogue metadata notes (e.g. [Thought: ...], (Internal Note: ...))
+    // 5. Remove structural metadata blocks
     cleaned = cleaned.replace(/\[thought:?[\s\S]*?\]/gi, '');
     cleaned = cleaned.replace(/\(thought:?[\s\S]*?\)/gi, '');
     cleaned = cleaned.replace(/\[note:?[\s\S]*?\]/gi, '');
-    cleaned = cleaned.replace(/\(note:?[\s\S]*?\)/gi, '');
     cleaned = cleaned.replace(/\[internal:?[\s\S]*?\]/gi, '');
     cleaned = cleaned.replace(/\(internal:?[\s\S]*?\)/gi, '');
 
-    // 5. Replace multiple concurrent white spaces and newlines with a single space to make speech voice-friendly
-    cleaned = cleaned.replace(/\s+/g, ' ');
+    // 6. Remove transcript-repeat debug phrases (CRITICAL — these must never reach TTS)
+    cleaned = cleaned.replace(/aapne kaha\s*[:"']?[^.!?]*/gi, '');
+    cleaned = cleaned.replace(/you said\s*[:"']?[^.!?]*/gi, '');
+    cleaned = cleaned.replace(/generate response now[:\s]*/gi, '');
+    cleaned = cleaned.replace(/start the conversation[:\s]*/gi, '');
+    cleaned = cleaned.replace(/user said\s*[:"']?[^.!?]*/gi, '');
 
-    // 6. Clean up trailing or leading whitespaces
-    cleaned = cleaned.trim();
+    // 7. Collapse whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
 
-    // 7. Emergency validation check: If the sanitizer leaves the message empty, supply a friendly dialog fallback
+    // 8. Emergency fallback if sanitizer empties the string
     if (!cleaned) {
-      this.logger.warn('Sanitization process emptied the conversational string. Restoring fallback greeting.');
-      cleaned = 'Haan ji, main aapki poori madad karne ke liye tayyar hoon. Kripya batayein aap kya janna chahte hain?';
+      this.logger.warn('ResponseSanitizer: result was empty after cleaning — using safe fallback');
+      return 'Ji bilkul, main aapki madad karne ke liye tayyar hoon.';
     }
 
     return cleaned;

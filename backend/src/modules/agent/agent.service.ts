@@ -8,6 +8,8 @@ import { BaseRepository } from '@common/repositories/base.repository';
 import { OrganizationService } from '../organization/organization.service';
 import { PromptBuilderService } from '../../services/prompt-builder.service';
 
+import { OrgContextCacheService } from '../redis/org-context-cache.service';
+
 @Injectable()
 export class AgentRepository extends BaseRepository<AgentDocument> {
   constructor(@InjectModel(Agent.name) model: Model<AgentDocument>) {
@@ -26,6 +28,7 @@ export class AgentService {
     @Inject(forwardRef(() => OrganizationService))
     private readonly orgService: OrganizationService,
     private readonly promptBuilder: PromptBuilderService,
+    private readonly cacheService: OrgContextCacheService,
   ) {}
 
   async create(dto: CreateAgentDto, userId: string): Promise<AgentDocument> {
@@ -113,10 +116,16 @@ export class AgentService {
 
     const updatedAgent = await this.repo.updateById(id, updatedData);
     if (!updatedAgent) throw new NotFoundException('Agent not found');
+    
+    // Invalidate the cache to ensure new settings take effect
+    await this.cacheService.invalidateAgentCache(agent.organizationId, id);
+    
     return updatedAgent;
   }
 
   async remove(id: string) {
+    const agent = await this.findOne(id);
+    await this.cacheService.invalidateAgentCache(agent.organizationId, id);
     return this.repo.updateById(id, { isActive: false });
   }
 
