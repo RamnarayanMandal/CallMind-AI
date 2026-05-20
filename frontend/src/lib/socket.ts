@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.NEXT_PUBLIC_WEB_SOCKET_URL || 'http://localhost:3001';
 
 class DemoSocketService {
   private socket: Socket | null = null;

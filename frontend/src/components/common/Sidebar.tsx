@@ -22,7 +22,7 @@ const menuItems = [
   // { name: 'Analytics', href: '/analytics', icon: PieChart },
   { name: 'Campaigns', href: '/campaigns', icon: Calendar },
   { name: 'Organization', href: '/organization', icon: Building2 },
-  { name: 'Settings', href: '/settings', icon: Settings },
+  // { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {

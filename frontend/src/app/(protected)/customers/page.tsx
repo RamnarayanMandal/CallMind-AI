@@ -252,7 +252,7 @@ export default function CustomersPage() {
           <h1 className="text-3xl font-bold tracking-tight">Customers</h1>
           <p className="text-muted-foreground mt-1">Manage your leads and start AI voice calls.</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-2 mr-4 bg-accent/30 p-1.5 rounded-xl border border-border/50">
             <span className="text-xs font-medium ml-2 text-muted-foreground">Using Agent:</span>
             <Select value={selectedAgentId} onValueChange={setSelectedAgentId}>
