@@ -12,6 +12,7 @@ import { KnowledgeBaseService } from '../knowledge-base/knowledge-base.service';
 import { TranscriptSanitizerService } from '../ai/transcript-sanitizer.service';
 import { ResponseCompletenessValidatorService } from '../ai/response-completeness-validator.service';
 import { ConversationOrchestratorService } from '../ai/conversation-orchestrator.service';
+import { ConversationMemoryService } from '../conversation/conversation-memory.service';
 import { LlmMessage } from '@providers/ai/ai.provider';
 
 export interface DemoSession {
@@ -55,6 +56,7 @@ export class DemoService {
     private readonly transcriptSanitizer: TranscriptSanitizerService,
     private readonly completenessValidator: ResponseCompletenessValidatorService,
     private readonly orchestrator: ConversationOrchestratorService,
+    private readonly conversationMemory: ConversationMemoryService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -122,6 +124,7 @@ export class DemoService {
     };
 
     await this.redisService.set(sessionKey, newSession, 3600);
+    await this.conversationMemory.clearMemory(clientId);
 
     // 4. Generate intro greeting
     try {
@@ -233,11 +236,14 @@ ${orchestratorResult.directives}
 
 CRITICAL: Keep your response short and conversational (max 2 sentences). Sound naturally human. Do NOT repeat marketing slogans or intros.`;
 
+      // Get persistent memory
+      const conversationMemory = await this.conversationMemory.getConversationMemory(clientId);
+
       // ── AI generation ──────────────────────────────────────────────────────
       const rawAiResponseText = await this.sarvamService.generateTurnResponse(
         userText,
         session.systemPrompt,
-        session.history,        // ← prior turns only: [user, assistant, user, assistant, ...]
+        conversationMemory,     // ← prior turns from persistent memory
         session.agentContext,
         session.orgContext,
         ragContext,
@@ -262,14 +268,11 @@ CRITICAL: Keep your response short and conversational (max 2 sentences). Sound n
         freshSession.summary = session.summary;
         freshSession.lastFollowUp = session.lastFollowUp;
 
-        // Append BOTH turns together — guarantees alternation
-        freshSession.history.push({ role: 'user',      content: userText });
-        freshSession.history.push({ role: 'assistant', content: healedResponseText });
-
-        // Trim history to last 20 turns to prevent token bloat
-        if (freshSession.history.length > 20) {
-          freshSession.history = freshSession.history.slice(-20);
-        }
+        // Append BOTH turns together to standard memory — guarantees alternation
+        await this.conversationMemory.appendMessages(clientId, [
+          { role: 'user', content: userText },
+          { role: 'assistant', content: healedResponseText },
+        ]);
 
         freshSession.isProcessing = false;
         await this.redisService.set(sessionKey, freshSession, 3600);
@@ -302,6 +305,7 @@ CRITICAL: Keep your response short and conversational (max 2 sentences). Sound n
 
   async cleanupSession(clientId: string) {
     await this.redisService.del(`call:${clientId}`);
+    await this.conversationMemory.clearMemory(clientId);
     this.logger.log(`[${clientId}] Session cleaned up`);
   }
 

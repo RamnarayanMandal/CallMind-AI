@@ -5,9 +5,10 @@ import { AiModule } from '../ai/ai.module';
 import { AgentModule } from '../agent/agent.module';
 import { OrganizationModule } from '../organization/organization.module';
 import { KnowledgeBaseModule } from '../knowledge-base/knowledge-base.module';
+import { ConversationModule } from '../conversation/conversation.module';
 
 @Module({
-  imports: [AiModule, AgentModule, OrganizationModule, KnowledgeBaseModule],
+  imports: [AiModule, AgentModule, OrganizationModule, KnowledgeBaseModule, ConversationModule],
   providers: [DemoGateway, DemoService],
 })
 export class DemoModule { }
