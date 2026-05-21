@@ -101,14 +101,15 @@ export class CallService {
   async executeCall(callId: string): Promise<void> {
     const call = await this.findOne(callId);
     
-    const canCall = await this.subscriptionService.canMakeCall(call.organizationId);
-    if (!canCall) {
-      await this.repo.updateById(callId, {
-        status: CallStatus.FAILED,
-        errorMessage: 'Subscription limit reached or inactive plan',
-      });
-      throw new Error('Subscription limit reached');
-    }
+    // TODO: Uncomment this before going live when subscription/admin module is ready
+    // const canCall = await this.subscriptionService.canMakeCall(call.organizationId);
+    // if (!canCall) {
+    //   await this.repo.updateById(callId, {
+    //     status: CallStatus.FAILED,
+    //     errorMessage: 'Subscription limit reached or inactive plan',
+    //   });
+    //   throw new Error('Subscription limit reached');
+    // }
 
     // Just enqueue the job and return immediately
     await this.callQueue.add('execute', { callId }, {

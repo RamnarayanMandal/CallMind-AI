@@ -18,51 +18,35 @@ export class TwilioTelephonyProvider implements ITelephonyProvider {
   }
 
   async initiateCall(options: CallOptions): Promise<CallResult> {
-    try {
-      const flowSid = this.configService.get<string>('telephony.twilio.studioFlowSid');
-      let to = options.to;
-      
-      // Basic E.164 formatting
-      if (to.length === 10) {
-        to = `+91${to}`;
-      } else if (!to.startsWith('+')) {
-        to = `+${to}`;
-      }
+  try {
 
-      if (flowSid) {
-        this.logger.log(`Initiating Twilio Studio Flow call to ${to} using Flow: ${flowSid}`);
-        const execution = await this.client.studio.v2.flows(flowSid)
-          .executions
-          .create({
-            to,
-            from: this.fromNumber,
-            parameters: options.metadata || {}
-          });
-        
-        return {
-          callSid: execution.sid,
-          status: execution.status,
-          provider: 'twilio-studio',
-        };
-      }
+    let to = options.to;
 
-      this.logger.log(`Initiating basic Twilio call to ${to}`);
-      const call = await this.client.calls.create({
-        from: this.fromNumber,
-        to,
-        url: 'http://demo.twilio.com/docs/voice.xml',
-      });
-
-      return {
-        callSid: call.sid,
-        status: call.status,
-        provider: 'twilio',
-      };
-    } catch (error) {
-      this.logger.error(`Twilio call failed: ${error.message}`);
-      throw error;
+    if (to.length === 10) {
+      to = `+91${to}`;
+    } else if (!to.startsWith('+')) {
+      to = `+${to}`;
     }
+
+    this.logger.log(`Initiating Twilio call to ${to}`);
+
+    const call = await this.client.calls.create({
+      from: this.fromNumber,
+      to,
+      url: 'https://your-domain.com/twilio/voice',
+    });
+
+    return {
+      callSid: call.sid,
+      status: call.status,
+      provider: 'twilio',
+    };
+
+  } catch (error) {
+    this.logger.error(`Twilio call failed: ${error.message}`);
+    throw error;
   }
+}
 
   async endCall(callSid: string): Promise<void> {
     await this.client.calls(callSid).update({ status: 'completed' });
