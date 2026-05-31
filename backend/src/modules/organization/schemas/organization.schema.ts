@@ -53,6 +53,25 @@ export class Organization {
 
   @Prop({ default: true })
   isActive: boolean;
+
+  // Telephony Configuration
+  @Prop({ trim: true })
+  telephonyProviderName?: string;
+
+  @Prop({ trim: true })
+  telephonyAccountId?: string;
+  
+  @Prop({ trim: true })
+  telephonyAuthToken?: string;
+
+  @Prop({ trim: true })
+  telephonyNumberId?: string;
+
+  @Prop({ trim: true })
+  telephonyPhoneNumber?: string;
+
+  @Prop({ type: Object })
+  telephonyMetadata?: Record<string, any>;
 }
 
 export const OrganizationSchema = SchemaFactory.createForClass(Organization);

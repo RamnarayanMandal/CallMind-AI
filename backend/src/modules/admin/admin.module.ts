@@ -7,6 +7,7 @@ import { Subscription, SubscriptionSchema } from '../subscription/schemas/subscr
 import { Agent, AgentSchema } from '../agent/schemas/agent.schema';
 import { AdminGateway } from './admin.gateway';
 import { AuthModule } from '../auth/auth.module';
+import { PlatformConfig, PlatformConfigSchema } from './schemas/platform-config.schema';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { AuthModule } from '../auth/auth.module';
       { name: User.name, schema: UserSchema },
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: Agent.name, schema: AgentSchema },
+      { name: PlatformConfig.name, schema: PlatformConfigSchema },
     ]),
   ],
   providers: [AdminService, AdminGateway],

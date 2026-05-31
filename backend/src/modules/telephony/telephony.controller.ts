@@ -1,7 +1,8 @@
-import { Controller, Post, Body, Headers, Logger, Req } from '@nestjs/common';
+import { Controller, Post, Body, Headers, Logger, Param, Req } from '@nestjs/common';
 import { CallService } from '../call/call.service';
 import { ConfigService } from '@nestjs/config';
 import { CallStatus } from '../call/schemas/call.schema';
+import { TelephonyProviderFactory } from '@providers/telephony/telephony.factory';
 
 @Controller('telephony')
 export class TelephonyWebhookController {
@@ -10,63 +11,69 @@ export class TelephonyWebhookController {
   constructor(
     private readonly callService: CallService,
     private readonly configService: ConfigService,
+    private readonly telephonyFactory: TelephonyProviderFactory,
   ) {}
 
+  // Backwards compatible webhook (defaulting to telnyx or twilio if previously used)
   @Post('webhook')
-  async handleWebhook(@Body() body: any, @Headers() headers: any) {
-    const eventType = body.data?.event_type;
-    const callControlId = body.data?.payload?.call_control_id;
-    const clientState = body.data?.payload?.client_state;
+  async handleLegacyWebhook(@Body() body: any, @Headers() headers: any) {
+    return this.processProviderWebhook('telnyx', body, headers);
+  }
 
-    this.logger.log(`Received Telnyx webhook: ${eventType} for call ${callControlId}`);
+  @Post('webhook/:providerName')
+  async handleProviderWebhook(
+    @Param('providerName') providerName: string,
+    @Body() body: any, 
+    @Headers() headers: any
+  ) {
+    return this.processProviderWebhook(providerName, body, headers);
+  }
 
-    if (!callControlId) return { status: 'ignored' };
+  private async processProviderWebhook(providerName: string, body: any, headers: any) {
+    const provider = this.telephonyFactory.getProvider(providerName);
+    
+    // Process the webhook to get standardized event
+    const event = await provider.processWebhook(body, headers['x-signature']); 
 
-    // Decode metadata from client_state
-    let metadata: any = {};
-    if (clientState) {
+    this.logger.log(`Received ${providerName} webhook: ${event.type} for call ${event.callSid}`);
+
+    if (!event.callSid) return { status: 'ignored' };
+    
+    const call = await this.callService.findByCallSid(event.callSid);
+    
+    // Fallback: Check if metadata contains callId (used by legacy telnyx integration)
+    let callId = call?._id?.toString();
+    if (!callId && body.data?.payload?.client_state) {
       try {
-        metadata = JSON.parse(Buffer.from(clientState, 'base64').toString());
+        const metadata = JSON.parse(Buffer.from(body.data.payload.client_state, 'base64').toString());
+        callId = metadata.callId;
       } catch (e) {
-        this.logger.error(`Failed to decode client_state: ${e.message}`);
+        // ignore
       }
     }
 
-    const callId = metadata.callId;
-
-    switch (eventType) {
-      case 'call.initiated':
-        this.logger.log(`Call initiated: ${callControlId}`);
-        if (callId) await this.callService.updateStatus(callId, CallStatus.PENDING);
-        break;
-
-      case 'call.answered':
-        this.logger.log(`Call answered: ${callControlId}`);
-        if (callId) await this.callService.updateStatus(callId, CallStatus.IN_PROGRESS);
-        break;
-
-      case 'call.hangup':
-        this.logger.log(`Call hangup: ${callControlId}`);
-        if (callId) await this.callService.updateStatus(callId, CallStatus.COMPLETED);
-        break;
-
-      case 'call.machine.detection.ended':
-        const result = body.data.payload.analysis;
-        this.logger.log(`Machine detection ended: ${result} for ${callControlId}`);
-        if (result === 'machine' && callId) {
-            // Handle voicemail detection if needed
-        }
-        break;
-
-      case 'call.failed':
-        this.logger.error(`Call failed: ${callControlId}`);
-        if (callId) await this.callService.updateStatus(callId, CallStatus.FAILED, body.data.payload.failure_reason);
-        break;
-
-      default:
-        this.logger.debug(`Unhandled event type: ${eventType}`);
+    if (!callId) {
+      this.logger.warn(`No call found for sid: ${event.callSid}`);
+      return { status: 'ignored' };
     }
 
+    switch (event.type) {
+      case 'call.initiated':
+        await this.callService.updateStatus(callId, CallStatus.PENDING);
+        break;
+      case 'call.answered':
+        await this.callService.updateStatus(callId, CallStatus.IN_PROGRESS);
+        break;
+      case 'call.hangup':
+        await this.callService.updateStatus(callId, CallStatus.COMPLETED);
+        break;
+      case 'call.failed':
+        await this.callService.updateStatus(callId, CallStatus.FAILED);
+        break;
+      case 'call.machine_detected':
+        // Machine detection logic
+        break;
+    }
     return { status: 'success' };
   }
 }

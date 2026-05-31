@@ -1,11 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ITelephonyProvider, CallOptions, CallResult } from './telephony.interface';
+import { ITelephonyProvider, CallOptions, CallResult, ProviderCredentials, StandardTelephonyEvent } from './telephony.interface';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const Telnyx = require('telnyx');
 
 @Injectable()
 export class TelnyxTelephonyProvider implements ITelephonyProvider {
+  name = 'telnyx';
   private readonly client: any;
   private readonly logger = new Logger(TelnyxTelephonyProvider.name);
   private readonly fromNumber: string;
@@ -19,8 +20,17 @@ export class TelnyxTelephonyProvider implements ITelephonyProvider {
     this.client = Telnyx(apiKey);
   }
 
-  async initiateCall(options: CallOptions): Promise<CallResult> {
+  private getClient(credentials?: ProviderCredentials): any {
+    if (credentials?.authToken) {
+      return Telnyx(credentials.authToken);
+    }
+    return this.client;
+  }
+
+  async initiateCall(options: CallOptions, credentials?: ProviderCredentials): Promise<CallResult> {
     try {
+      const client = this.getClient(credentials);
+      const connectionId = credentials?.accountId || this.connectionId;
       let to = options.to;
       
       // Basic E.164 formatting
@@ -36,11 +46,11 @@ export class TelnyxTelephonyProvider implements ITelephonyProvider {
       const webhookUrl = `${baseUrl}/api/v1/telephony/webhook`;
       this.logger.debug(`Using webhook URL: ${webhookUrl}`);
 
-      const response = await this.client.calls.dial({
+      const response = await client.calls.dial({
         to,
-        from: this.fromNumber,
-        connection_id: this.connectionId,
-        webhook_url: webhookUrl,
+        from: options.from || this.fromNumber,
+        connection_id: connectionId,
+        webhook_url: options.webhookUrl || webhookUrl,
         webhook_url_method: 'POST',
         // Store metadata in client_state (base64 encoded)
         client_state: Buffer.from(JSON.stringify(options.metadata || {})).toString('base64'),
@@ -75,21 +85,41 @@ export class TelnyxTelephonyProvider implements ITelephonyProvider {
     }
   }
 
-  async endCall(callSid: string): Promise<void> {
+  async endCall(callSid: string, credentials?: ProviderCredentials): Promise<void> {
     try {
-      await this.client.calls.actions.hangup(callSid);
+      const client = this.getClient(credentials);
+      await client.calls.actions.hangup(callSid);
     } catch (error) {
       this.logger.error(`Failed to end Telnyx call ${callSid}: ${error.message}`);
     }
   }
 
-  async getCallStatus(callSid: string): Promise<string> {
+  async getCallStatus(callSid: string, credentials?: ProviderCredentials): Promise<string> {
     try {
-      const response = await this.client.calls.retrieveStatus(callSid);
+      const client = this.getClient(credentials);
+      const response = await client.calls.retrieveStatus(callSid);
       return response.data.state;
     } catch (error) {
       this.logger.error(`Failed to get Telnyx call status ${callSid}: ${error.message}`);
       return 'unknown';
     }
+  }
+
+  async processWebhook(payload: any, signature?: string, credentials?: ProviderCredentials): Promise<StandardTelephonyEvent> {
+    let type: StandardTelephonyEvent['type'] = 'unknown';
+    const eventType = payload.event_type;
+
+    if (eventType === 'call.initiated') type = 'call.initiated';
+    else if (eventType === 'call.answered') type = 'call.answered';
+    else if (eventType === 'call.hangup') type = 'call.hangup';
+    else if (eventType === 'call.machine.detection.ended' && payload.payload?.analysis === 'machine') type = 'call.machine_detected';
+    else if (eventType === 'call.failed') type = 'call.failed';
+
+    return {
+      type,
+      callSid: payload.payload?.call_control_id || '',
+      provider: this.name,
+      rawPayload: payload,
+    };
   }
 }

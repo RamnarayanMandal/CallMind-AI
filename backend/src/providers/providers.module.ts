@@ -16,11 +16,18 @@ import { AI_PROVIDER, LLM_PROVIDER } from './ai/ai.provider';
 import { SarvamAiProvider } from './ai/sarvam-ai.provider';
 import { ExistingAiProvider } from './ai/existing-ai.provider';
 
+// Telephony Providers
+import { TwilioTelephonyProvider } from './telephony/twilio.provider';
+import { TelnyxTelephonyProvider } from './telephony/telnyx.provider';
+import { VobizProvider } from './telephony/vobiz.provider';
+import { KnowlarityProvider } from './telephony/knowlarity.provider';
+import { TelephonyProviderFactory } from './telephony/telephony.factory';
+
 @Global()
 @Module({
   imports: [ConfigModule],
   providers: [
-    // Register individual provider implementations so they can be injected by the factory
+    // STT, TTS, AI Providers
     WhisperSttProvider,
     SarvamSttProvider,
     OpenAiTtsProvider,
@@ -28,14 +35,19 @@ import { ExistingAiProvider } from './ai/existing-ai.provider';
     ExistingAiProvider,
     SarvamAiProvider,
 
+    // Telephony Implementations
+    TwilioTelephonyProvider,
+    TelnyxTelephonyProvider,
+    VobizProvider,
+    KnowlarityProvider,
+    TelephonyProviderFactory,
+
     // Dynamic STT Provider Factory
     {
       provide: STT_PROVIDER,
       useFactory: (config: ConfigService, whisper: WhisperSttProvider, sarvam: SarvamSttProvider) => {
         const providerName = config.get<string>('STT_PROVIDER') || process.env.STT_PROVIDER || 'whisper';
-        if (providerName.toLowerCase() === 'sarvam') {
-          return sarvam;
-        }
+        if (providerName.toLowerCase() === 'sarvam') return sarvam;
         return whisper;
       },
       inject: [ConfigService, WhisperSttProvider, SarvamSttProvider],
@@ -46,9 +58,7 @@ import { ExistingAiProvider } from './ai/existing-ai.provider';
       provide: TTS_PROVIDER,
       useFactory: (config: ConfigService, openai: OpenAiTtsProvider, sarvam: SarvamTtsProvider) => {
         const providerName = config.get<string>('TTS_PROVIDER') || process.env.TTS_PROVIDER || 'openai';
-        if (providerName.toLowerCase() === 'sarvam') {
-          return sarvam;
-        }
+        if (providerName.toLowerCase() === 'sarvam') return sarvam;
         return openai;
       },
       inject: [ConfigService, OpenAiTtsProvider, SarvamTtsProvider],
@@ -59,9 +69,7 @@ import { ExistingAiProvider } from './ai/existing-ai.provider';
       provide: AI_PROVIDER,
       useFactory: (config: ConfigService, existing: ExistingAiProvider, sarvam: SarvamAiProvider) => {
         const providerName = config.get<string>('AI_PROVIDER') || process.env.AI_PROVIDER || 'existing';
-        if (providerName.toLowerCase() === 'sarvam') {
-          return sarvam;
-        }
+        if (providerName.toLowerCase() === 'sarvam') return sarvam;
         return existing;
       },
       inject: [ConfigService, ExistingAiProvider, SarvamAiProvider],
@@ -79,6 +87,7 @@ import { ExistingAiProvider } from './ai/existing-ai.provider';
     TTS_PROVIDER,
     AI_PROVIDER,
     LLM_PROVIDER,
+    TelephonyProviderFactory, // Export the dynamic telephony factory instead of static provider
   ],
 })
 export class ProvidersModule {}

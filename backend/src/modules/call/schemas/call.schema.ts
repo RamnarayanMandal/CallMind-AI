@@ -41,6 +41,9 @@ export class Call {
   callSid?: string;
 
   @Prop({ trim: true })
+  telephonyProvider?: string;
+
+  @Prop({ trim: true })
   phoneNumber: string;
 
   @Prop()

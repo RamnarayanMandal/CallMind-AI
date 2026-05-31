@@ -5,7 +5,8 @@ import { Call, CallDocument, CallStatus, CallOutcome } from './schemas/call.sche
 import { CreateCallDto, UpdateCallOutcomeDto } from './dto/call.dto';
 import { PaginationDto } from '@common/dto/pagination.dto';
 import { BaseRepository } from '@common/repositories/base.repository';
-import { ITelephonyProvider, TELEPHONY_PROVIDER } from '@providers/telephony/telephony.interface';
+import { TelephonyProviderFactory } from '@providers/telephony/telephony.factory';
+import { ProviderCredentials } from '@providers/telephony/telephony.interface';
 import { ILlmProvider, LLM_PROVIDER } from '@providers/llm/llm.interface';
 import { buildPaginationMeta, buildSkip, PaginatedResult, PaginationOptions } from '@common/utils/pagination.util';
 
@@ -55,13 +56,16 @@ import { Queue } from 'bull';
 import { CustomerService } from '../customer/customer.service';
 import { SubscriptionService } from '../subscription/subscription.service';
 
+import { OrganizationService } from '../organization/organization.service';
+
 @Injectable()
 export class CallService {
   constructor(
     private readonly repo: CallRepository,
     private readonly customerService: CustomerService,
     private readonly subscriptionService: SubscriptionService,
-    @Inject(TELEPHONY_PROVIDER) private readonly telephony: ITelephonyProvider,
+    private readonly organizationService: OrganizationService,
+    private readonly telephonyFactory: TelephonyProviderFactory,
     @InjectQueue(CALL_QUEUE) private readonly callQueue: Queue,
   ) {}
 
@@ -91,6 +95,11 @@ export class CallService {
   async findOne(id: string): Promise<CallDocument> {
     const call = await this.repo.findById(id);
     if (!call) throw new NotFoundException('Call not found');
+    return call;
+  }
+
+  async findByCallSid(callSid: string): Promise<CallDocument> {
+    const call = await this.repo.findOne({ callSid });
     return call;
   }
 
@@ -131,12 +140,28 @@ export class CallService {
     });
 
     try {
-      const result = await this.telephony.initiateCall({
-        to: call.phoneNumber,
-        metadata: { callId, agentId: call.agentId },
-      });
+      const org = await this.organizationService.findById(call.organizationId);
+      if (!org) throw new Error('Organization not found');
 
-      await this.repo.updateById(callId, { callSid: result.callSid });
+      const providerName = org.telephonyProviderName || 'vobiz';
+      const provider = this.telephonyFactory.getProvider(providerName);
+
+      let credentials: ProviderCredentials | undefined;
+      if (org.telephonyAccountId && org.telephonyAuthToken) {
+        credentials = {
+          accountId: org.telephonyAccountId,
+          authToken: org.telephonyAuthToken,
+          metadata: org.telephonyMetadata,
+        };
+      }
+
+      const result = await provider.initiateCall({
+        to: call.phoneNumber,
+        from: org.telephonyPhoneNumber,
+        metadata: { callId, agentId: call.agentId },
+      }, credentials);
+
+      await this.repo.updateById(callId, { callSid: result.callSid, provider: providerName });
     } catch (err) {
       await this.repo.updateById(callId, {
         status: CallStatus.FAILED,

@@ -8,10 +8,10 @@ export class Customer {
   @Prop({ required: true, trim: true })
   name: string;
 
-  @Prop({ required: true, trim: true, index: true })
+  @Prop({ required: true, trim: true, index: true , unique:true })
   phone: string;
 
-  @Prop({ trim: true, lowercase: true })
+  @Prop({ trim: true, lowercase: true , index: true , unique:true })
   email?: string;
 
   @Prop({ trim: true })
