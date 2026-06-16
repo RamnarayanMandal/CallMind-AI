@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { contactService } from '@/services/contact.service';
+import { useCreateContact } from '@/hooks/use-contact';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Loader2, CheckCircle, AlertCircle, Mail, Phone, MapPin } from 'lucide-react';
@@ -10,22 +10,20 @@ import Footer from '@/components/homePageCompoment/Footer';
 
 export default function ContactUsPage() {
   const [form, setForm] = useState({ name: '', email: '', phone: '', subject: '', message: '' });
-  const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState('');
 
+  const { mutateAsync: createContact, isPending: submitting } = useCreateContact();
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError('');
     try {
-      await contactService.create(form);
+      await createContact(form);
       setSuccess(true);
       setForm({ name: '', email: '', phone: '', subject: '', message: '' });
     } catch (err: any) {
       setError(err?.response?.data?.message || 'Failed to send message. Please try again.');
-    } finally {
-      setSubmitting(false);
     }
   };
 
@@ -99,14 +97,14 @@ export default function ContactUsPage() {
                       <Mail className="w-5 h-5 text-blue-400 mt-0.5" />
                       <div>
                         <p className="text-sm text-slate-400">Email</p>
-                        <p className="text-white">support@callmind.ai</p>
+                        <p className="text-white">ramnarayan847230@gmail.com</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">
                       <Phone className="w-5 h-5 text-blue-400 mt-0.5" />
                       <div>
                         <p className="text-sm text-slate-400">Phone</p>
-                        <p className="text-white">+91 98765 43210</p>
+                        <p className="text-white">+91 6352 396 301</p>
                       </div>
                     </div>
                     <div className="flex items-start gap-3">

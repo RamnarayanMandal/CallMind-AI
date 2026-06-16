@@ -69,6 +69,7 @@ export class SarvamSttProvider implements ISttProvider {
           'Authorization': `Bearer ${sarvamKey}`,
           'api-subscription-key': sarvamKey,
         },
+        timeout: 8000,
       });
 
       const latencyMs = Date.now() - startTime;

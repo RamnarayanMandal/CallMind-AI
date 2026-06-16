@@ -137,9 +137,9 @@ export class VobizLiveCallService {
     // 4. Log total latency
     const totalLatency = Date.now() - startTime;
     this.logger.log(`[LATENCY] Call answered → XML ready: ${totalLatency}ms`);
-    this.logger.log(`[XML_RESPONSE_SENT] <Stream> only (greeting will be sent via WebSocket)`);
-    this.logger.log(`[GREETING_QUEUED] text="${introText.substring(0, 80)}" — will be sent after WebSocket connects`);
-    return this.buildStreamXml();
+    this.logger.log(`[XML_RESPONSE_SENT] <Speak> + <Record> response (recording-based conversation)`);
+    this.logger.log(`[GREETING_IN_XML] text="${introText.substring(0, 80)}" — played by Plivo via <Speak>`);
+    return this.buildRecordXml(introText);
   }
 
   // ── RECORDING RECEIVED — STT → LLM → TTS → next Record ────────────────────
@@ -300,29 +300,6 @@ export class VobizLiveCallService {
   }
 
   /**
-   * Build a PlivoXML response that connects the call to our WebSocket Gateway.
-   * IMPORTANT: NO <Speak> element — greeting is sent through WebSocket.
-   * Vobiz processes XML sequentially — after <Speak> finishes, it sees
-   * "end of XML" and hangs up. By removing <Speak>, the call stays alive
-   * because the WebSocket connection remains active.
-   */
-  private buildStreamXml(): string {
-    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/api/v1/telephony/vobiz/stream';
-
-    // Stream ONLY — no Speak element
-    // The greeting will be sent through the WebSocket after 'start' event
-    return [
-      '<?xml version="1.0" encoding="UTF-8"?>',
-      '<Response>',
-      `  <Stream url="${wsUrl}" keepCallAlive="true" statusCallback="${this.baseUrl}/api/v1/telephony/vobiz/events" statusCallbackEvent="connected started">`,
-      `    <Language>hi-IN</Language>`,
-      `  </Stream>`,
-      '</Response>',
-    ].join('\n');
-  }
-
-  /**
-   * (Deprecated for Live calls, now using WebSockets)
    * Build a PlivoXML response that:
    * 1. Optionally speaks a message
    * 2. Records the next user utterance (up to 15 seconds)

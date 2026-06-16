@@ -32,13 +32,28 @@ class AdminService {
     return response.data;
   }
 
-  async getMyOrganizations(): Promise<AdminOrgBilling[]> {
-    const response = await api.get('/admin/my-organizations');
+  async getMyOrganizations(params?: { page?: number; limit?: number }): Promise<{ data: AdminOrgBilling[]; meta: any }> {
+    const response = await api.get('/admin/my-organizations', { params });
     return response.data;
   }
 
   async getMyOrganizationById(id: string): Promise<AdminOrgDetail> {
     const response = await api.get(`/admin/my-organizations/${id}`);
+    return response.data;
+  }
+
+  async createMyOrganization(data: any): Promise<any> {
+    const response = await api.post('/admin/my-organizations', data);
+    return response.data;
+  }
+
+  async updateMyOrganization(id: string, data: any): Promise<any> {
+    const response = await api.patch(`/admin/my-organizations/${id}`, data);
+    return response.data;
+  }
+
+  async deleteMyOrganization(id: string): Promise<any> {
+    const response = await api.delete(`/admin/my-organizations/${id}`);
     return response.data;
   }
 

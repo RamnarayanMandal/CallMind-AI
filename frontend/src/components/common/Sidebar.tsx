@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   Users,
   Phone,
+  PhoneCall,
   Settings,
   LogOut,
   Bot,
@@ -21,6 +22,7 @@ import { usePathname } from "next/navigation";
 const menuItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Customers', href: '/customers', icon: Users },
+  { name: 'Call History', href: '/call-history', icon: PhoneCall },
   { name: 'Agents', href: '/agents', icon: Bot },
   // { name: 'Analytics', href: '/analytics', icon: PieChart },
   { name: 'Campaigns', href: '/campaigns', icon: Calendar },

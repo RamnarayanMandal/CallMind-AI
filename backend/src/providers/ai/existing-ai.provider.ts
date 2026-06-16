@@ -29,7 +29,7 @@ export class ExistingAiProvider implements IAiProvider {
               Authorization: `Bearer ${openAiKey}`,
               'Content-Type': 'application/json',
             },
-            timeout: 20000,
+            timeout: 8000,
           }
         );
 
@@ -57,7 +57,7 @@ export class ExistingAiProvider implements IAiProvider {
         const response = await axios.post(
           `${sarvamUrl}/chat/completions`,
           {
-            model: 'sarvam-m',
+            model: 'sarvam-30b',
             messages,
             temperature,
             max_tokens: 500,
@@ -68,7 +68,7 @@ export class ExistingAiProvider implements IAiProvider {
               'api-subscription-key': sarvamKey,
               'Content-Type': 'application/json',
             },
-            timeout: 20000,
+            timeout: 8000,
           }
         );
 
@@ -77,7 +77,7 @@ export class ExistingAiProvider implements IAiProvider {
         return {
           content: this.censorSystemNames(choice.message.content),
           tokensUsed: response.data.usage?.total_tokens,
-          model: response.data.model || 'sarvam-m',
+          model: response.data.model || 'sarvam-30b',
           latencyMs,
         };
       } catch (sarvamError) {
@@ -146,7 +146,7 @@ export class ExistingAiProvider implements IAiProvider {
               'Content-Type': 'application/json',
             },
             responseType: 'stream',
-            timeout: 20000,
+            timeout: 8000,
           }
         );
 
@@ -209,7 +209,7 @@ export class ExistingAiProvider implements IAiProvider {
         const response = await axios.post(
           `${sarvamUrl}/chat/completions`,
           {
-            model: 'sarvam-m',
+            model: 'sarvam-30b',
             messages,
             temperature,
             max_tokens: 500,
@@ -222,7 +222,7 @@ export class ExistingAiProvider implements IAiProvider {
               'Content-Type': 'application/json',
             },
             responseType: 'stream',
-            timeout: 20000,
+            timeout: 8000,
           }
         );
 
@@ -262,7 +262,7 @@ export class ExistingAiProvider implements IAiProvider {
             this.logger.log(`Sarvam fallback stream completed in ${latencyMs}ms`);
             resolve({
               content: fullText,
-              model: 'sarvam-m',
+              model: 'sarvam-30b',
               latencyMs,
             });
           });

@@ -83,6 +83,7 @@ export class SarvamTtsProvider implements ITtsProvider {
             'Content-Type': 'application/json',
             'api-subscription-key': sarvamKey,
           },
+          timeout: 8000,
         }
       );
 

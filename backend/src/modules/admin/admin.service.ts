@@ -6,8 +6,12 @@ import { Subscription } from '../subscription/schemas/subscription.schema';
 import { Agent, AgentDocument } from '../agent/schemas/agent.schema';
 import { PlatformConfig, PlatformConfigDocument } from './schemas/platform-config.schema';
 import { Organization, OrganizationDocument } from '../organization/schemas/organization.schema';
+import { OrganizationService } from '../organization/organization.service';
 import { Call, CallDocument } from '../call/schemas/call.schema';
 import { Plan } from '../subscription/schemas/plan.schema';
+import { PaginationDto } from '@common/dto/pagination.dto';
+import { CreateOrganizationDto, UpdateOrganizationDto } from '../organization/dto/organization.dto';
+import { buildPaginationMeta } from '@common/utils/pagination.util';
 import * as bcrypt from 'bcryptjs';
 import { UpdateTelephonyConfigDto } from './dto/telephony-config.dto';
 
@@ -24,6 +28,7 @@ export class AdminService {
     @InjectModel(PlatformConfig.name) private platformConfigModel: Model<PlatformConfigDocument>,
     @InjectModel(Organization.name) private organizationModel: Model<OrganizationDocument>,
     @InjectModel(Call.name) private callModel: Model<CallDocument>,
+    private readonly orgService: OrganizationService,
   ) {}
 
   async getDashboardStats() {
@@ -244,18 +249,30 @@ export class AdminService {
   // Admin's Own Organizations
   // ──────────────────────────────────────────────────────────────────────
 
-  async getMyOrganizations(userId: string) {
-    const orgs = await this.organizationModel.find({ ownerId: userId }).lean();
-    if (!orgs.length) return [];
+  async getMyOrganizations(userId: string, pagination: PaginationDto) {
+    const filter = { ownerId: userId };
+    const { page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = pagination;
+    const skip = (page - 1) * limit;
+    const sort = { [sortBy]: sortOrder === 'asc' ? 1 : -1 } as any;
 
+    const [orgs, total] = await Promise.all([
+      this.organizationModel.find(filter).sort(sort).skip(skip).limit(limit).lean(),
+      this.organizationModel.countDocuments(filter),
+    ]);
+
+    if (!total) return { data: [], meta: buildPaginationMeta(total, page, limit) };
+
+    const orgIds = orgs.map(o => o._id.toString());
     const subs = await this.subscriptionModel.find({
-      organizationId: { $in: orgs.map(o => o._id.toString()) },
+      organizationId: { $in: orgIds },
     }).populate('planId').lean();
+    const users = await this.userModel.find().select('name email organizationId').lean();
     const subMap = new Map(subs.map(s => [s.organizationId.toString(), s]));
 
     const results = await Promise.all(orgs.map(async (org: any) => {
       const sub = subMap.get(org._id.toString()) as any;
       const plan = sub?.planId as any;
+      const orgUsers = users.filter(u => u.organizationId === org._id.toString());
 
       const calls = await this.callModel.find({
         organizationId: org._id.toString(),
@@ -275,6 +292,7 @@ export class AdminService {
         _id: org._id,
         name: org.name,
         industry: org.industry || '',
+        ownerEmail: orgUsers.find(u => u._id.toString() === userId)?.email || '',
         planName: plan?.name || 'No Plan',
         minutesUsed: sub?.minutesUsed || 0,
         minutesLimit: plan?.minutesLimit || 0,
@@ -286,7 +304,7 @@ export class AdminService {
       };
     }));
 
-    return results;
+    return { data: results, meta: buildPaginationMeta(total, page, limit) };
   }
 
   async getMyOrganizationById(userId: string, orgId: string) {
@@ -294,6 +312,18 @@ export class AdminService {
     if (!org) throw new NotFoundException('Organization not found');
 
     return this.getOrganizationById(orgId);
+  }
+
+  async createMyOrganization(userId: string, dto: CreateOrganizationDto) {
+    return this.orgService.create(dto, userId);
+  }
+
+  async updateMyOrganization(userId: string, orgId: string, dto: UpdateOrganizationDto) {
+    return this.orgService.update(orgId, dto, userId);
+  }
+
+  async deleteMyOrganization(userId: string, orgId: string) {
+    return this.orgService.remove(orgId, userId);
   }
 
   // ──────────────────────────────────────────────────────────────────────

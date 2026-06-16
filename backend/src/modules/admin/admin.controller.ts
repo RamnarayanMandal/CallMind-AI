@@ -1,9 +1,11 @@
-import { Controller, Get, Put, Post, Patch, Body, Param, UseGuards, Req } from '@nestjs/common';
+import { Controller, Get, Put, Post, Patch, Delete, Body, Param, Query, UseGuards, Req } from '@nestjs/common';
 import { AdminService } from './admin.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { Roles, Role } from '../../common/decorators/roles.decorator';
 import { UpdateTelephonyConfigDto } from './dto/telephony-config.dto';
+import { CreateOrganizationDto, UpdateOrganizationDto } from '../organization/dto/organization.dto';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @Controller('admin')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -46,17 +48,36 @@ export class AdminController {
   }
 
   // ──────────────────────────────────────────────────────────────────────
-  // Admin's Own Organizations
+  // Admin's Own Organizations — CRUD + Pagination
   // ──────────────────────────────────────────────────────────────────────
 
   @Get('my-organizations')
-  async getMyOrganizations(@Req() req: any) {
-    return this.adminService.getMyOrganizations(req.user._id);
+  async getMyOrganizations(@Req() req: any, @Query() pagination: PaginationDto) {
+    return this.adminService.getMyOrganizations(req.user._id, pagination);
+  }
+
+  @Post('my-organizations')
+  async createMyOrganization(@Req() req: any, @Body() dto: CreateOrganizationDto) {
+    return this.adminService.createMyOrganization(req.user._id, dto);
   }
 
   @Get('my-organizations/:id')
   async getMyOrganizationById(@Req() req: any, @Param('id') id: string) {
     return this.adminService.getMyOrganizationById(req.user._id, id);
+  }
+
+  @Patch('my-organizations/:id')
+  async updateMyOrganization(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Body() dto: UpdateOrganizationDto,
+  ) {
+    return this.adminService.updateMyOrganization(req.user._id, id, dto);
+  }
+
+  @Delete('my-organizations/:id')
+  async deleteMyOrganization(@Req() req: any, @Param('id') id: string) {
+    return this.adminService.deleteMyOrganization(req.user._id, id);
   }
 
   // ──────────────────────────────────────────────────────────────────────

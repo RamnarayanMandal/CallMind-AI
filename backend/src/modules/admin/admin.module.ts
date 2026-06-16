@@ -12,10 +12,12 @@ import { AdminAnalyticsService } from './admin-analytics.service';
 import { AdminAnalyticsController } from './admin-analytics.controller';
 import { Call, CallSchema } from '../call/schemas/call.schema';
 import { Organization, OrganizationSchema } from '../organization/schemas/organization.schema';
+import { OrganizationModule } from '../organization/organization.module';
 
 @Module({
   imports: [
     AuthModule,
+    OrganizationModule,
     MongooseModule.forFeature([
       { name: User.name, schema: UserSchema },
       { name: Subscription.name, schema: SubscriptionSchema },

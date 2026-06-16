@@ -18,6 +18,7 @@ import { CALL_QUEUE } from '../call/call.service';
       { name: Call.name, schema: CallSchema },
     ]),
     BullModule.registerQueue({ name: CALL_QUEUE }),
+    BullModule.registerQueue({ name: 'mail-queue' }),
     NotificationModule,
     MailModule,
   ],

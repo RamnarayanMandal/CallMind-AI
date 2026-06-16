@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,16 +10,24 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AgentSelector } from '@/components/admin/AgentSelector';
 import {
   Loader2, AlertCircle, User, Mail, Phone, MessageSquare,
-  Bot, PhoneCall, CheckCircle, ArrowLeft, Send,
+  PhoneCall, CheckCircle, ArrowLeft, Send, Clock,
 } from 'lucide-react';
 import Link from 'next/link';
-import { format } from 'date-fns';
+import { format, isValid } from 'date-fns';
 import { contactService } from '@/services/contact.service';
 import { useAuth } from '@/hooks/useAuth';
 
+/** Safely formats a date value; returns fallback string if date is invalid */
+function safeFormat(dateVal: any, fmt: string, fallback = '—'): string {
+  if (!dateVal) return fallback;
+  const d = new Date(dateVal);
+  return isValid(d) ? format(d, fmt) : fallback;
+}
+
 export default function AdminContactDetailPage() {
   const params = useParams();
-  const id = params.id as string;
+  const router = useRouter();
+  const id = params?.id as string;
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -29,17 +37,26 @@ export default function AdminContactDetailPage() {
   const [savingResponse, setSavingResponse] = useState(false);
   const [error, setError] = useState('');
 
-  const { data: contact, isLoading, isError } = useQuery({
+  const { data: contactData, isLoading, isError } = useQuery({
     queryKey: ['contact', id],
     queryFn: () => contactService.getById(id),
     enabled: !!id,
+    retry: 1,
   });
 
   const { data: agentsData } = useQuery({
     queryKey: ['admin-agents', user?.organizationId],
-    queryFn: () => import('@/services/agent.service').then(m => m.agentService.getAll(user?.organizationId || '')),
+    queryFn: () =>
+      import('@/services/agent.service').then((m) =>
+        m.agentService.getAll(user?.organizationId || ''),
+      ),
     enabled: !!user?.organizationId,
   });
+
+  // Safely extract the contact — handle both direct object and { data: ... } shape
+  const contact: any = contactData && typeof contactData === 'object'
+    ? (('data' in contactData && contactData.data ? (contactData as any).data : contactData))
+    : null;
 
   const agentList = agentsData as any;
   const agents = agentList?.data?.data || agentList?.data || [];
@@ -73,6 +90,17 @@ export default function AdminContactDetailPage() {
     }
   };
 
+  if (!id) {
+    return (
+      <div className="p-8 max-w-5xl mx-auto">
+        <Alert variant="destructive" className="bg-red-950/50 border-red-900 text-red-200">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>Invalid contact ID.</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="p-8 max-w-5xl mx-auto">
@@ -85,35 +113,56 @@ export default function AdminContactDetailPage() {
 
   if (isError || !contact) {
     return (
-      <div className="p-8 max-w-5xl mx-auto">
+      <div className="p-8 max-w-5xl mx-auto space-y-4">
         <Alert variant="destructive" className="bg-red-950/50 border-red-900 text-red-200">
           <AlertCircle className="h-4 w-4" />
-          <AlertDescription>Failed to load contact.</AlertDescription>
+          <AlertDescription>Failed to load contact. The record may not exist.</AlertDescription>
         </Alert>
+        <Link href="/admin/contact-us">
+          <Button variant="outline" className="text-slate-400">
+            <ArrowLeft className="w-4 h-4 mr-1" /> Back to Contact Messages
+          </Button>
+        </Link>
       </div>
     );
   }
 
-  const callRecord = contact.callId;
+  const callRecord = contact.callId && typeof contact.callId === 'object' ? contact.callId : null;
+
+  const statusVariant = (s: string) => {
+    if (s === 'new') return 'secondary';
+    if (s === 'contacted') return 'warning';
+    if (s === 'resolved') return 'success';
+    return 'default';
+  };
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
             <MessageSquare className="w-7 h-7 text-blue-500" />
           </div>
           <div>
-            <h1 className="text-3xl font-bold text-white">{contact.subject}</h1>
-            <p className="text-slate-400 mt-1">from {contact.name} · {format(new Date(contact.createdAt), 'dd MMM yyyy, h:mm a')}</p>
+            <h1 className="text-3xl font-bold text-white">{contact.subject || 'Untitled'}</h1>
+            <p className="text-slate-400 mt-1">
+              from {contact.name || 'Unknown'} ·{' '}
+              {safeFormat(contact.createdAt, 'dd MMM yyyy, h:mm a')}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Badge variant={contact.status === 'new' ? 'secondary' : contact.status === 'contacted' ? 'warning' : 'success'} className="rounded-md capitalize text-sm px-3 py-1">
-            {contact.status}
+          <Badge
+            variant={statusVariant(contact.status) as any}
+            className="rounded-md capitalize text-sm px-3 py-1"
+          >
+            {contact.status || 'new'}
           </Badge>
           <Link href="/admin/contact-us">
-            <Button variant="outline" className="text-slate-400"><ArrowLeft className="w-4 h-4 mr-1" /> Back</Button>
+            <Button variant="outline" className="text-slate-400">
+              <ArrowLeft className="w-4 h-4 mr-1" /> Back
+            </Button>
           </Link>
         </div>
       </div>
@@ -136,21 +185,29 @@ export default function AdminContactDetailPage() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
             <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
-              <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><User className="w-3 h-3" /> Name</p>
-              <p className="text-white font-medium">{contact.name}</p>
+              <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                <User className="w-3 h-3" /> Name
+              </p>
+              <p className="text-white font-medium">{contact.name || '—'}</p>
             </div>
             <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
-              <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Mail className="w-3 h-3" /> Email</p>
-              <p className="text-white font-medium truncate">{contact.email}</p>
+              <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                <Mail className="w-3 h-3" /> Email
+              </p>
+              <p className="text-white font-medium truncate">{contact.email || '—'}</p>
             </div>
             <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
-              <p className="text-xs text-slate-500 mb-1 flex items-center gap-1"><Phone className="w-3 h-3" /> Phone</p>
-              <p className="text-white font-medium">{contact.phone}</p>
+              <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                <Phone className="w-3 h-3" /> Phone
+              </p>
+              <p className="text-white font-medium">{contact.phone || '—'}</p>
             </div>
           </div>
           <div className="mt-4 bg-slate-950 rounded-lg p-4 border border-slate-800">
             <p className="text-xs text-slate-500 mb-2">Message</p>
-            <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{contact.message}</p>
+            <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+              {contact.message || '(No message)'}
+            </p>
           </div>
         </CardContent>
       </Card>
@@ -170,7 +227,9 @@ export default function AdminContactDetailPage() {
           {!callRecord ? (
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-slate-400 mb-1.5 block">Select AI Agent to call the contact</label>
+                <label className="text-sm text-slate-400 mb-1.5 block">
+                  Select AI Agent to call the contact
+                </label>
                 <AgentSelector
                   agents={agents}
                   loading={!agentsData}
@@ -193,30 +252,53 @@ export default function AdminContactDetailPage() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                   <p className="text-xs text-slate-500 mb-1">Status</p>
-                  <Badge variant={callRecord.status === 'completed' ? 'success' : callRecord.status === 'failed' ? 'destructive' : 'secondary'} className="rounded-md capitalize">
-                    {callRecord.status}
+                  <Badge
+                    variant={
+                      callRecord.status === 'completed'
+                        ? 'success'
+                        : callRecord.status === 'failed'
+                        ? 'destructive'
+                        : 'secondary'
+                    }
+                    className="rounded-md capitalize"
+                  >
+                    {callRecord.status === 'pending' ? 'Scheduled' : callRecord.status}
                   </Badge>
                 </div>
                 <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                   <p className="text-xs text-slate-500 mb-1">Outcome</p>
-                  <p className="text-white font-medium capitalize">{callRecord.outcome || 'Pending'}</p>
+                  <p className="text-white font-medium capitalize">
+                    {callRecord.outcome === 'unknown' ? 'Pending' : callRecord.outcome || '-'}
+                  </p>
                 </div>
                 <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                   <p className="text-xs text-slate-500 mb-1">Duration</p>
-                  <p className="text-white font-medium">{callRecord.durationSeconds ? `${Math.round(callRecord.durationSeconds / 60)} min` : '-'}</p>
+                  <p className="text-white font-medium">
+                    {callRecord.durationSeconds
+                      ? `${Math.round(callRecord.durationSeconds / 60)} min`
+                      : '-'}
+                  </p>
                 </div>
                 <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                   <p className="text-xs text-slate-500 mb-1">Agent</p>
-                  <p className="text-white font-medium">{contact.assignedAgentId?.name || 'N/A'}</p>
+                  <p className="text-white font-medium">
+                    {contact.assignedAgentId?.name || 'N/A'}
+                  </p>
                 </div>
               </div>
-              {callRecord.recordingUrl && (
+              {callRecord.status !== 'pending' && callRecord.recordingUrl && (
                 <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
                   <p className="text-xs text-slate-500 mb-2">Recording</p>
                   <audio controls className="w-full" src={callRecord.recordingUrl}>
                     Your browser does not support the audio element.
                   </audio>
                 </div>
+              )}
+              {callRecord.status === 'pending' && (
+                <p className="text-sm text-slate-400 flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Call is scheduled and will be initiated within 24 hours.
+                </p>
               )}
             </div>
           )}
@@ -229,9 +311,9 @@ export default function AdminContactDetailPage() {
           <div className="flex items-center gap-2">
             <Send className="w-5 h-5 text-cyan-400" />
             <CardTitle className="text-white">Response</CardTitle>
-            {contact.response && (
+            {contact.response && contact.respondedAt && (
               <CardDescription className="text-slate-400 ml-auto">
-                Responded {format(new Date(contact.respondedAt), 'dd MMM yyyy, h:mm a')}
+                Responded {safeFormat(contact.respondedAt, 'dd MMM yyyy, h:mm a')}
               </CardDescription>
             )}
           </div>
@@ -239,7 +321,9 @@ export default function AdminContactDetailPage() {
         <CardContent>
           {contact.response ? (
             <div className="bg-slate-950 rounded-lg p-4 border border-slate-800">
-              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">{contact.response}</p>
+              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+                {contact.response}
+              </p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -250,8 +334,16 @@ export default function AdminContactDetailPage() {
                 onChange={(e) => setResponseText(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-white text-sm placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50"
               />
-              <Button onClick={handleSaveResponse} disabled={!responseText.trim() || savingResponse} className="flex items-center gap-2">
-                {savingResponse ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              <Button
+                onClick={handleSaveResponse}
+                disabled={!responseText.trim() || savingResponse}
+                className="flex items-center gap-2"
+              >
+                {savingResponse ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <CheckCircle className="w-4 h-4" />
+                )}
                 {savingResponse ? 'Saving...' : 'Send Response'}
               </Button>
             </div>

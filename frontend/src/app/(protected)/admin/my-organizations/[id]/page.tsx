@@ -268,7 +268,11 @@ export default function AdminMyOrganizationDetailPage() {
                 </thead>
                 <tbody>
                   {recentCalls.map((call: any) => (
-                    <tr key={call._id} className="border-b border-slate-800/50 text-slate-300">
+                    <tr
+                      key={call._id}
+                      className="border-b border-slate-800/50 text-slate-300 hover:bg-slate-800/30 cursor-pointer transition-colors"
+                      onClick={() => window.location.href = `/admin/call-history/${call._id}`}
+                    >
                       <td className="py-2">{call.phoneNumber}</td>
                       <td className="py-2"><Badge variant={call.status === 'completed' ? 'success' : 'secondary'} className="rounded-md text-xs capitalize">{call.status}</Badge></td>
                       <td className="py-2 capitalize">{call.outcome || '-'}</td>

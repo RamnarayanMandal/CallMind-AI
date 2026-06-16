@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, Inject } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, FilterQuery } from 'mongoose';
 import { Call, CallDocument, CallStatus, CallOutcome } from './schemas/call.schema';
+import { Conversation, ConversationDocument } from '../conversation/schemas/conversation.schema';
 import { CreateCallDto, UpdateCallOutcomeDto } from './dto/call.dto';
 import { PaginationDto } from '@common/dto/pagination.dto';
 import { BaseRepository } from '@common/repositories/base.repository';
@@ -67,6 +68,7 @@ export class CallService {
     private readonly organizationService: OrganizationService,
     private readonly telephonyFactory: TelephonyProviderFactory,
     @InjectQueue(CALL_QUEUE) private readonly callQueue: Queue,
+    @InjectModel(Conversation.name) private conversationModel: Model<ConversationDocument>,
   ) {}
 
   async create(dto: CreateCallDto): Promise<CallDocument> {
@@ -93,9 +95,18 @@ export class CallService {
   }
 
   async findOne(id: string): Promise<CallDocument> {
-    const call = await this.repo['model'].findById(id).populate('customerId agentId').lean();
+    const call = await this.repo['model'].findById(id).lean();
     if (!call) throw new NotFoundException('Call not found');
     return call as any;
+  }
+
+  async findOneWithDetails(id: string): Promise<any> {
+    const call = await this.repo['model'].findById(id)
+      .populate('customerId', 'name email phone company')
+      .populate('agentId', 'name')
+      .lean();
+    if (!call) throw new NotFoundException('Call not found');
+    return call;
   }
 
   async findByCallSid(callSid: string): Promise<CallDocument> {
@@ -210,5 +221,35 @@ export class CallService {
         },
       },
     ]);
+  }
+
+  async findHistory(organizationId: string, page: number, limit: number): Promise<{ data: any[]; meta: any }> {
+    const filter: any = { organizationId };
+    const skip = buildSkip(page, limit);
+
+    const [calls, total] = await Promise.all([
+      this.repo['model']
+        .find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('customerId', 'name phone')
+        .populate('agentId', 'name')
+        .lean(),
+      this.repo['model'].countDocuments(filter),
+    ]);
+
+    const callIds = calls.map(c => c._id.toString());
+    const conversations = await this.conversationModel
+      .find({ callId: { $in: callIds } })
+      .lean();
+    const convMap = new Map(conversations.map(c => [c.callId.toString(), c]));
+
+    const data = calls.map(call => ({
+      ...call,
+      conversation: convMap.get(call._id.toString()) || null,
+    }));
+
+    return { data, meta: buildPaginationMeta(total, page, limit) };
   }
 }

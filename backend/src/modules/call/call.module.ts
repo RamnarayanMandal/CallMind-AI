@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { CallController } from './call.controller';
 import { CallService, CallRepository, CALL_QUEUE } from './call.service';
 import { Call, CallSchema } from './schemas/call.schema';
+import { Conversation, ConversationSchema } from '../conversation/schemas/conversation.schema';
 import { ConfigService } from '@nestjs/config';
 
 import { BullModule } from '@nestjs/bull';
@@ -17,6 +18,7 @@ import { AiModule } from '../ai/ai.module';
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Call.name, schema: CallSchema }]),
+    MongooseModule.forFeature([{ name: Conversation.name, schema: ConversationSchema }]),
     BullModule.registerQueue({
       name: CALL_QUEUE,
     }),

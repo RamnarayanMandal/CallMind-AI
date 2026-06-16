@@ -10,7 +10,7 @@ import { CallService } from './call.service';
 @ApiTags('Calls')
 @ApiBearerAuth()
 @UseGuards(AuthGuard('jwt'))
-@Controller('calls')
+@Controller(['calls', 'call'])
 export class CallController {
   private readonly logger = new Logger(CallController.name);
 
@@ -68,6 +68,16 @@ export class CallController {
   @ApiOperation({ summary: 'Update call outcome' })
   updateOutcome(@Param('id') id: string, @Body() dto: UpdateCallOutcomeDto) {
     return this.callService.updateOutcome(id, dto);
+  }
+
+  @Get('history/list')
+  @ApiOperation({ summary: 'Get call history with conversations' })
+  async getHistory(
+    @Query('organizationId') organizationId: string,
+    @Query('page') page = 1,
+    @Query('limit') limit = 20,
+  ): Promise<{ data: any[]; meta: any }> {
+    return this.callService.findHistory(organizationId, Number(page), Number(limit));
   }
 
   @Post(':id/execute')

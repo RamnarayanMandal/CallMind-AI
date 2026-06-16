@@ -37,6 +37,7 @@ export class OpenAiTtsProvider implements ITtsProvider {
             Authorization: `Bearer ${apiKey}`,
           },
           responseType: 'arraybuffer',
+          timeout: 8000,
         }
       );
 

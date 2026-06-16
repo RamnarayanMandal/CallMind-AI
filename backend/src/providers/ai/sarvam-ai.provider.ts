@@ -17,7 +17,7 @@ export class SarvamAiProvider implements IAiProvider {
   async generateResponse(messages: LlmMessage[], temperature = 0.7): Promise<LlmResponse> {
     const startTime = Date.now();
     try {
-      this.logger.debug('Generating response using Sarvam AI Provider (sarvam-m)...');
+      this.logger.debug('Generating response using Sarvam AI Provider (sarvam-30b)...');
 
       if (!this.apiKey) {
         throw new Error('SARVAM_API_KEY is not configured');
@@ -39,7 +39,7 @@ export class SarvamAiProvider implements IAiProvider {
       const response = await axios.post(
         `${this.apiUrl}/chat/completions`,
         {
-          model: 'sarvam-m',
+          model: 'sarvam-30b',
           messages: sanitisedMessages,
           temperature,
           max_tokens: 500,
@@ -50,7 +50,7 @@ export class SarvamAiProvider implements IAiProvider {
             'api-subscription-key': this.apiKey,
             'Authorization': `Bearer ${this.apiKey}`,
           },
-          timeout: 25000,
+          timeout: 8000,
         }
       );
 
@@ -66,7 +66,7 @@ export class SarvamAiProvider implements IAiProvider {
       return {
         content: reply,
         tokensUsed: response.data.usage?.total_tokens,
-        model: response.data.model || 'sarvam-m',
+        model: response.data.model || 'sarvam-30b',
         latencyMs,
       };
     } catch (error) {
@@ -84,7 +84,7 @@ export class SarvamAiProvider implements IAiProvider {
   ): Promise<LlmResponse> {
     const startTime = Date.now();
     try {
-      this.logger.debug('Generating streaming response using Sarvam AI Provider (sarvam-m)...');
+      this.logger.debug('Generating streaming response using Sarvam AI Provider (sarvam-30b)...');
 
       if (!this.apiKey) {
         throw new Error('SARVAM_API_KEY is not configured');
@@ -104,7 +104,7 @@ export class SarvamAiProvider implements IAiProvider {
       const response = await axios.post(
         `${this.apiUrl}/chat/completions`,
         {
-          model: 'sarvam-m',
+          model: 'sarvam-30b',
           messages: sanitisedMessages,
           temperature,
           max_tokens: 500,
@@ -117,7 +117,7 @@ export class SarvamAiProvider implements IAiProvider {
             'Authorization': `Bearer ${this.apiKey}`,
           },
           responseType: 'stream',
-          timeout: 25000,
+          timeout: 8000,
         }
       );
 
@@ -157,7 +157,7 @@ export class SarvamAiProvider implements IAiProvider {
           this.logger.log(`Sarvam AI stream completed in ${latencyMs}ms`);
           resolve({
             content: fullText,
-            model: 'sarvam-m',
+            model: 'sarvam-30b',
             latencyMs,
           });
         });

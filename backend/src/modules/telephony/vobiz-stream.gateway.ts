@@ -23,6 +23,12 @@ interface StreamSession {
   silenceFrames: number;
   lastActiveTime: number;
   turnCount: number;
+  // Silence re-engagement tracking
+  aiSpeaking: boolean;
+  postAiSilenceFrames: number;
+  reengagementLevel: number;
+  lastReengagementTime: number;
+  isProcessingUtterance: boolean;
 }
 
 @WebSocketGateway({ path: '/api/v1/telephony/vobiz/stream' })
@@ -35,7 +41,12 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
 
   // Simple RMS VAD constants
   private readonly SILENCE_THRESHOLD = 0.01; // Adjust based on mu-law/pcm levels
-  private readonly MAX_SILENCE_FRAMES = 50; // About ~1 second of silence at 50 packets/sec
+  private readonly MAX_SILENCE_FRAMES = 45; // About ~900ms of silence at 50 packets/sec
+
+  // Silence re-engagement constants
+  private readonly POST_AI_SILENCE_FRAMES = 150; // ~3 seconds at 50 packets/sec
+  private readonly REENGAGEMENT_COOLDOWN_MS = 5000; // 5s between re-engagements
+  private readonly MAX_REENGAGEMENTS = 2; // max times before wrapping up
 
   // MongoDB backup interval — save transcript every N turns
   private readonly BACKUP_EVERY_N_TURNS = 3;
@@ -78,10 +89,15 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
             silenceFrames: 0,
             lastActiveTime: Date.now(),
             turnCount: 0,
+            aiSpeaking: true,
+            postAiSilenceFrames: 0,
+            reengagementLevel: 0,
+            lastReengagementTime: Date.now(),
+            isProcessingUtterance: false,
           });
 
-          // Send greeting audio through WebSocket (keeps call alive)
-          await this.sendGreetingAudio(client, callUuid, streamSid);
+          // Prepare stream for conversation — Plivo <Speak> handles the greeting
+          await this.startConversationStream(client, callUuid, streamSid);
 
         } else if (data.event === 'media') {
           const session = this.sessions.get(client);
@@ -101,23 +117,45 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
             }
             session.isSpeaking = true;
             session.silenceFrames = 0;
+            session.postAiSilenceFrames = 0;
+            session.reengagementLevel = 0;
             session.lastActiveTime = Date.now();
             session.audioBuffer.push(audioChunk);
           } else {
             if (session.isSpeaking) {
-              session.audioBuffer.push(audioChunk); // Keep some silence for smooth STT
+              // Person was speaking, now silent — track for VAD pause
+              session.audioBuffer.push(audioChunk);
               session.silenceFrames++;
 
-              // User paused for long enough
               if (session.silenceFrames >= this.MAX_SILENCE_FRAMES) {
-                this.logger.log(`[VAD_PAUSE_DETECTED] callId=${session.callUuid} — processing utterance`);
-                session.isSpeaking = false;
-                
-                const finalAudio = Buffer.concat(session.audioBuffer);
-                session.audioBuffer = []; // Clear for next utterance
-                
-                // Fire off processing async so we don't block the stream
-                this.processUtterance(client, session.callUuid, session.streamSid, finalAudio);
+                if (session.isProcessingUtterance) {
+                  this.logger.debug(`[VAD_SKIP] callId=${session.callUuid} — already processing, skipping`);
+                  session.audioBuffer = [];
+                  session.silenceFrames = 0;
+                } else {
+                  this.logger.log(`[VAD_PAUSE_DETECTED] callId=${session.callUuid} — processing utterance`);
+                  session.isProcessingUtterance = true;
+                  session.isSpeaking = false;
+                  
+                  const finalAudio = Buffer.concat(session.audioBuffer);
+                  session.audioBuffer = [];
+                  
+                  this.processUtterance(client, session.callUuid, session.streamSid, finalAudio);
+                }
+              }
+            } else {
+              // Person is silent and not speaking — track post-AI silence for re-engagement
+              if (!session.aiSpeaking && !session.isProcessingUtterance) {
+                session.postAiSilenceFrames++;
+                if (session.postAiSilenceFrames >= this.POST_AI_SILENCE_FRAMES) {
+                  const now = Date.now();
+                  if (now - session.lastReengagementTime >= this.REENGAGEMENT_COOLDOWN_MS) {
+                    session.postAiSilenceFrames = 0;
+                    session.lastReengagementTime = now;
+                    this.logger.log(`[SILENCE_TIMEOUT] callId=${session.callUuid} level=${session.reengagementLevel}`);
+                    this.triggerReengagement(client, session, session.callUuid, session.streamSid);
+                  }
+                }
               }
             }
           }
@@ -138,64 +176,28 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
   }
 
   /**
-   * Send greeting audio through WebSocket after connection is established.
-   * This keeps the call alive because the WebSocket remains active.
+   * Prepare the WebSocket stream for conversation.
+   * The greeting is played by Plivo via <Speak> in the answer XML concurrently with
+   * the WebSocket stream. This method does NOT send duplicate audio — it sets up
+   * session state so the stream is ready to receive the customer's first utterance.
    */
-  private async sendGreetingAudio(client: any, callUuid: string, streamSid: string): Promise<void> {
-    try {
-      const sessionKey = `live_call:${callUuid}`;
-      const session = await this.redisService.get<any>(sessionKey);
-      if (!session?.greetingText) {
-        this.logger.warn(`[GREETING] No greeting text for callId=${callUuid}`);
-        return;
-      }
-
-      const agentContext = session.agentContext || {};
-      const greetingText = session.greetingText;
-
-      this.logger.log(`[GREETING_STARTED] callId=${callUuid} text="${greetingText.substring(0, 80)}"`);
-      const startTime = Date.now();
-
-      // Generate TTS for greeting
-      const ttsResult = await this.ttsService.synthesize(greetingText, {
-        language: agentContext?.language || 'hi-IN',
-        gender: agentContext?.gender || 'female',
-      });
-
-      this.logger.log(`[TTS_STARTED] callId=${callUuid} — greeting TTS generated`);
-
-      // Convert to mu-law and send through WebSocket
-      const wav = new WaveFile(ttsResult.audioBuffer);
-      wav.toSampleRate(8000);
-      wav.toMuLaw();
-      const rawMuLaw = Buffer.from((wav.data as any).samples);
-
-      // Send in chunks to simulate real-time audio playback
-      const chunkSize = 320; // 40ms of audio at 8000Hz
-      for (let i = 0; i < rawMuLaw.length; i += chunkSize) {
-        const chunk = rawMuLaw.subarray(i, i + chunkSize);
-        const payload = {
-          event: 'media',
-          streamSid: streamSid,
-          media: {
-            payload: chunk.toString('base64')
-          }
-        };
-
-        if (client.readyState === 1) { // WebSocket.OPEN
-          client.send(JSON.stringify(payload));
-        }
-        
-        // Small delay to simulate real-time audio playback
-        await new Promise(resolve => setTimeout(resolve, 40));
-      }
-
-      const latency = Date.now() - startTime;
-      this.logger.log(`[GREETING_COMPLETED] callId=${callUuid} latency=${latency}ms — customer can now speak`);
-
-    } catch (err) {
-      this.logger.error(`[GREETING_ERROR] Failed to send greeting for callId=${callUuid}: ${err.message}`);
+  private async startConversationStream(client: any, callUuid: string, streamSid: string): Promise<void> {
+    const streamSession = this.sessions.get(client);
+    if (!streamSession) {
+      this.logger.warn(`[STREAM_NO_SESSION] callId=${callUuid}`);
+      return;
     }
+
+    this.logger.log(`[STREAM_READY] callId=${callUuid} streamSid=${streamSid} — stream active, greeting playing via Plivo, listening for customer`);
+
+    streamSession.aiSpeaking = false;
+    streamSession.isProcessingUtterance = false;
+    streamSession.isSpeaking = false;
+    streamSession.silenceFrames = 0;
+    streamSession.postAiSilenceFrames = 0;
+    streamSession.reengagementLevel = 0;
+    streamSession.lastReengagementTime = Date.now();
+    streamSession.lastActiveTime = Date.now();
   }
 
   /**
@@ -203,6 +205,7 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
    */
   private async processUtterance(client: any, callUuid: string, streamSid: string, audioBuffer: Buffer) {
     const startTime = Date.now();
+    const streamSession = this.sessions.get(client);
     try {
       this.logger.log(`[UTTERANCE_PROCESSING] callId=${callUuid} audioSize=${audioBuffer.length} bytes`);
       
@@ -230,11 +233,13 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
         );
       } catch (err) {
         this.logger.error(`[STT_FAILED] callId=${callUuid} error=${err.message}`);
-        return; // ignore mumbles
+        if (streamSession) streamSession.isProcessingUtterance = false;
+        return;
       }
 
       if (!userText || userText.trim().length < 2) {
-        this.logger.debug(`[STT_EMPTY] callId=${callUuid} — no speech detected`);
+        this.logger.debug(`[STT_EMPTY] callId=${callUuid} — no speech detected, sending re-engagement prompt`);
+        await this.sendReengagementPrompt(client, streamSession, callUuid, streamSid, 0);
         return;
       }
       const sttLatency = Date.now() - sttStart;
@@ -248,11 +253,13 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
       let totalTtsLatencySum = 0;
       let ttsCount = 0;
 
+      let hasSentAudio = false;
+
       const onChunk = (chunk: string) => {
         sentenceBuffer += chunk;
         
-        // Split by sentence terminators: ., ?, !, \n, and Hindi danda (।)
-        const sentences = sentenceBuffer.split(/(?<=[.?!।\n])/g);
+        // Split by sentence and clause terminators: ., ?, !, \n, Hindi danda (।), and comma (,), semicolon (;), colon (:)
+        const sentences = sentenceBuffer.split(/(?<=[.?!।\n,;:])/g);
         sentenceBuffer = sentences.pop() || '';
 
         for (const sentence of sentences) {
@@ -260,6 +267,10 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
           if (cleanSentence.length > 1) {
             const currentSentence = cleanSentence;
             ttsQueue = ttsQueue.then(async () => {
+              if (!hasSentAudio && streamSession) {
+                streamSession.aiSpeaking = true;
+                hasSentAudio = true;
+              }
               try {
                 this.logger.log(`[TTS_STARTED] callId=${callUuid} text="${currentSentence.substring(0, 30)}..."`);
                 const ttsStart = Date.now();
@@ -312,6 +323,10 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
       if (sentenceBuffer.trim().length > 0) {
         const remainingSentence = sentenceBuffer.trim();
         ttsQueue = ttsQueue.then(async () => {
+          if (!hasSentAudio && streamSession) {
+            streamSession.aiSpeaking = true;
+            hasSentAudio = true;
+          }
           try {
             this.logger.log(`[TTS_STARTED] callId=${callUuid} text="${remainingSentence.substring(0, 30)}..."`);
             const ttsStart = Date.now();
@@ -387,6 +402,11 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
 
     } catch (error) {
       this.logger.error(`[UTTERANCE_FAILED] callId=${callUuid} error=${error.message}`, error.stack);
+    } finally {
+      if (streamSession) {
+        streamSession.aiSpeaking = false;
+        streamSession.isProcessingUtterance = false;
+      }
     }
   }
 
@@ -425,6 +445,151 @@ export class VobizStreamGateway implements OnGatewayConnection, OnGatewayDisconn
       this.logger.debug(`[BACKUP] Transcript backed up to MongoDB for callId=${callId} (${transcript.length} turns)`);
     } catch (err) {
       this.logger.warn(`[BACKUP_ERROR] Failed to backup transcript: ${err.message}`);
+    }
+  }
+
+  /**
+   * Trigger a re-engagement prompt after the person has been silent for ~3 seconds.
+   * Uses a two-tier strategy:
+   *   Level 0: Polite re-engagement ("Hello? Are you still there?")
+   *   Level 1: Natural follow-up based on conversation stage
+   *   Level 2+: Wrap-up prompt
+   */
+  private async triggerReengagement(client: any, session: StreamSession, callUuid: string, streamSid: string): Promise<void> {
+    session.isProcessingUtterance = true;
+    session.aiSpeaking = true;
+    session.postAiSilenceFrames = 0;
+
+    try {
+      const level = session.reengagementLevel;
+      const sessionKey = `live_call:${callUuid}`;
+      const sessionData = await this.redisService.get<any>(sessionKey);
+      const agentContext = sessionData?.agentContext || {};
+      const language = agentContext?.language || 'hi-IN';
+
+      let prompt = '';
+      if (level === 0) {
+        // First silence — polite check-in
+        prompt = language === 'hi-IN' || language === 'hinglish'
+          ? 'Hello? Kya aap abhi bhi hain?'
+          : 'Hello? Are you still there?';
+      } else if (level === 1) {
+        // Second silence — natural follow-up from conversation stage
+        const priorHistory = await this.conversationMemory.getConversationMemory(callUuid);
+        if (priorHistory.length > 1) {
+          prompt = language === 'hi-IN' || language === 'hinglish'
+            ? 'Kya aap kuch aur jaanna chahenge? Main aapki madad ke liye yahaan hoon.'
+            : 'Would you like to know anything else? I\'m here to help.';
+        } else {
+          prompt = language === 'hi-IN' || language === 'hinglish'
+            ? 'Kya main aapki kisi aur cheez mein madad kar sakti hoon?'
+            : 'Is there anything else I can help you with?';
+        }
+      } else {
+        // Third+ silence — wrap up
+        prompt = language === 'hi-IN' || language === 'hinglish'
+          ? 'Main aapko baad mein call karti hoon. Dhanyavaad!'
+          : 'I will call you back later. Thank you!';
+      }
+
+      this.logger.log(`[REENGAGEMENT] callId=${callUuid} level=${level} prompt="${prompt.substring(0, 50)}"`);
+
+      // TTS and send
+      const ttsResult = await this.ttsService.synthesize(prompt, {
+        language,
+        gender: agentContext?.gender || 'female',
+      });
+
+      const wav = new WaveFile(ttsResult.audioBuffer);
+      wav.toSampleRate(8000);
+      wav.toMuLaw();
+      const rawMuLaw = Buffer.from((wav.data as any).samples);
+
+      const payload = {
+        event: 'media',
+        streamSid,
+        media: {
+          payload: rawMuLaw.toString('base64')
+        }
+      };
+
+      if (client.readyState === 1) {
+        client.send(JSON.stringify(payload));
+      }
+
+      // Save to conversation memory as an assistant turn
+      await this.conversationMemory.appendMessages(callUuid, [
+        { role: 'assistant', content: prompt },
+      ]);
+
+      session.reengagementLevel = Math.min(level + 1, this.MAX_REENGAGEMENTS + 1);
+      session.lastReengagementTime = Date.now();
+
+    } catch (err) {
+      this.logger.error(`[REENGAGEMENT_ERROR] callId=${callUuid} error=${err.message}`);
+    } finally {
+      session.aiSpeaking = false;
+      session.isProcessingUtterance = false;
+    }
+  }
+
+  /**
+   * Send a re-engagement prompt when STT returns empty / no speech detected.
+   * Lighter than triggerReengagement — resets silence counters and keeps the call alive.
+   */
+  private async sendReengagementPrompt(client: any, session: StreamSession | undefined, callUuid: string, streamSid: string, level: number): Promise<void> {
+    const streamSession = this.sessions.get(client);
+    if (streamSession) {
+      streamSession.aiSpeaking = true;
+      streamSession.postAiSilenceFrames = 0;
+      streamSession.isProcessingUtterance = true;
+    }
+
+    try {
+      const sessionKey = `live_call:${callUuid}`;
+      const sessionData = await this.redisService.get<any>(sessionKey);
+      const agentContext = sessionData?.agentContext || {};
+      const language = agentContext?.language || 'hi-IN';
+
+      const prompt = language === 'hi-IN' || language === 'hinglish'
+        ? 'Kya aapne kuch kaha? Main sun rahi hoon. Kripya phir se bolein.'
+        : 'I didn\'t catch that. Could you please repeat?';
+
+      this.logger.log(`[STT_RECOVERY] callId=${callUuid} sending recovery prompt`);
+
+      const ttsResult = await this.ttsService.synthesize(prompt, {
+        language,
+        gender: agentContext?.gender || 'female',
+      });
+
+      const wav = new WaveFile(ttsResult.audioBuffer);
+      wav.toSampleRate(8000);
+      wav.toMuLaw();
+      const rawMuLaw = Buffer.from((wav.data as any).samples);
+
+      const payload = {
+        event: 'media',
+        streamSid,
+        media: {
+          payload: rawMuLaw.toString('base64')
+        }
+      };
+
+      if (client.readyState === 1) {
+        client.send(JSON.stringify(payload));
+      }
+
+      // Save to memory so the AI knows it sent a recovery prompt
+      await this.conversationMemory.appendMessages(callUuid, [
+        { role: 'assistant', content: prompt },
+      ]);
+
+    } catch (err) {
+      this.logger.error(`[STT_RECOVERY_ERROR] callId=${callUuid} error=${err.message}`);
+    } finally {
+      if (streamSession) {
+        streamSession.aiSpeaking = false;
+      }
     }
   }
 

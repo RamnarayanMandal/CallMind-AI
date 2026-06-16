@@ -32,6 +32,7 @@ export class WhisperSttProvider implements ISttProvider {
         headers: {
           'Authorization': `Bearer ${apiKey}`,
         },
+        timeout: 8000,
       });
 
       const latencyMs = Date.now() - startTime;

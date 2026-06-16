@@ -20,6 +20,7 @@ export class ContactService {
     @InjectModel(User.name) private userModel: Model<any>,
     @InjectModel(Call.name) private callModel: Model<any>,
     @InjectQueue(CALL_QUEUE) private callQueue: Queue,
+    @InjectQueue('mail-queue') private mailQueue: Queue,
     private notificationService: NotificationService,
     private mailService: MailService,
   ) {}
@@ -41,8 +42,49 @@ export class ContactService {
         { contactId: contact._id.toString() },
       );
 
+      // Enqueue job for sending email notification to the user's requested email: ramnarayan847230@gmail.com
+      await this.mailQueue.add(
+        'send-contact-email',
+        {
+          to: 'ramnarayan847230@gmail.com',
+          contact: {
+            name: dto.name,
+            email: dto.email,
+            phone: dto.phone,
+            subject: dto.subject,
+            message: dto.message,
+          },
+        },
+        {
+          attempts: 3,
+          backoff: { type: 'exponential', delay: 5000 },
+          removeOnComplete: true,
+        },
+      );
+
+      // Enqueue jobs for other admins instead of sending them synchronously
       for (const email of adminEmails) {
-        await this.mailService.sendContactNotification(email, dto);
+        // Skip if it is already ramnarayan847230@gmail.com to avoid double emails
+        if (email === 'ramnarayan847230@gmail.com') continue;
+
+        await this.mailQueue.add(
+          'send-contact-email',
+          {
+            to: email,
+            contact: {
+              name: dto.name,
+              email: dto.email,
+              phone: dto.phone,
+              subject: dto.subject,
+              message: dto.message,
+            },
+          },
+          {
+            attempts: 3,
+            backoff: { type: 'exponential', delay: 5000 },
+            removeOnComplete: true,
+          },
+        );
       }
     } catch (err) {
       this.logger.error('Failed to notify admins', (err as Error).message);

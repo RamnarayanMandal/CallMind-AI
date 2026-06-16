@@ -68,6 +68,14 @@ export const callService = {
     return URL.createObjectURL(response.data);
   },
 
+  // Get call history with conversations
+  getCallHistory: async (organizationId: string, page = 1, limit = 20): Promise<{ data: any[]; meta: any }> => {
+    const response = await apiClient.get('/calls/history/list', {
+      params: { organizationId, page, limit },
+    });
+    return response.data;
+  },
+
   // Delete a call (and optionally its recording)
   deleteCall: async (callId: string): Promise<void> => {
     await apiClient.delete(`/calls/${callId}`);
