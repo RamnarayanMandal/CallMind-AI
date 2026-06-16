@@ -16,7 +16,9 @@ export const databaseConfig = registerAs('database', () => ({
 
 export const jwtConfig = registerAs('jwt', () => ({
   secret: process.env.JWT_SECRET || 'fallback_secret',
-  expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  expiresIn: process.env.JWT_EXPIRES_IN || '15m',
+  refreshSecret: process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || 'fallback_refresh_secret',
+  refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
 }));
 
 export const redisConfig = registerAs('redis', () => ({

@@ -1,8 +1,10 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Settings,
   ShieldCheck,
@@ -17,7 +19,12 @@ import {
   Zap,
   Globe,
   Wifi,
+  User,
+  Lock,
+  Save,
 } from 'lucide-react';
+import { useAuth } from '@/hooks/useAuth';
+import { useUpdateProfile, useChangePassword } from '@/hooks/useProfile';
 import { telephonyConfigService, TelephonyConfig, UpdateTelephonyConfigPayload } from '@/services/telephony-config.service';
 
 // ─── Provider Meta-data ───────────────────────────────────────────────────────
@@ -156,6 +163,45 @@ export default function AdminSettingsPage() {
       setSaveStatus('error');
     } finally {
       setSaving(false);
+    }
+  };
+
+  // ── Profile state ─────────────────────────────────────────────────
+  const { user } = useAuth();
+  const updateProfileMutation = useUpdateProfile('admin');
+  const changePasswordMutation = useChangePassword('admin');
+  const [profileName, setProfileName] = useState(user?.name || '');
+  const [profileEmail, setProfileEmail] = useState(user?.email || '');
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const handleUpdateProfile = async () => {
+    try {
+      await updateProfileMutation.mutateAsync({ name: profileName, email: profileEmail });
+      alert('Profile updated successfully');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to update profile');
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      alert('New passwords do not match');
+      return;
+    }
+    if (newPassword.length < 6) {
+      alert('Password must be at least 6 characters');
+      return;
+    }
+    try {
+      await changePasswordMutation.mutateAsync({ currentPassword, newPassword });
+      alert('Password changed successfully');
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Failed to change password');
     }
   };
 
@@ -366,6 +412,99 @@ export default function AdminSettingsPage() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* ── Profile & Password ── */}
+      <div>
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+            <User className="w-5 h-5 text-purple-400" />
+          </div>
+          <div>
+            <h2 className="text-lg font-semibold text-white">Profile & Password</h2>
+            <p className="text-sm text-slate-400">Update your name, email, or change your password.</p>
+          </div>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2">
+          <Card className="bg-slate-900 border-slate-800 text-white">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <User className="w-4 h-4 text-blue-400" /> Update Profile
+              </CardTitle>
+              <CardDescription className="text-slate-400">Change your display name and email address.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-slate-300">Name</Label>
+                <Input
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-slate-300">Email</Label>
+                <Input
+                  value={profileEmail}
+                  onChange={(e) => setProfileEmail(e.target.value)}
+                  type="email"
+                  className="bg-slate-800 border-slate-700 text-white mt-1"
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleUpdateProfile} disabled={updateProfileMutation.isPending} className="flex items-center gap-2">
+                {updateProfileMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                Save Profile
+              </Button>
+            </CardFooter>
+          </Card>
+
+          <Card className="bg-slate-900 border-slate-800 text-white">
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Lock className="w-4 h-4 text-orange-400" /> Change Password
+              </CardTitle>
+              <CardDescription className="text-slate-400">Update your login password.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label className="text-slate-300">Current Password</Label>
+                <Input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-slate-300">New Password</Label>
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white mt-1"
+                />
+              </div>
+              <div>
+                <Label className="text-slate-300">Confirm New Password</Label>
+                <Input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-slate-800 border-slate-700 text-white mt-1"
+                />
+              </div>
+            </CardContent>
+            <CardFooter>
+              <Button onClick={handleChangePassword} disabled={changePasswordMutation.isPending} className="flex items-center gap-2">
+                {changePasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
+                Change Password
+              </Button>
+            </CardFooter>
+          </Card>
+        </div>
       </div>
 
       {/* ── Security & Gateway Cards ── */}

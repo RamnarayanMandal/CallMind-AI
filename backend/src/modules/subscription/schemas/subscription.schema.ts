@@ -15,7 +15,7 @@ export class Subscription extends Document {
   @Prop()
   razorpayCustomerId: string;
 
-  @Prop({ enum: ['active', 'past_due', 'canceled', 'trialing'], default: 'trialing' })
+  @Prop({ enum: ['created', 'active', 'halted', 'cancelled', 'expired', 'past_due', 'trialing'], default: 'created' })
   status: string;
 
   @Prop({ default: 0 })

@@ -33,8 +33,42 @@ export class SarvamTtsProvider implements ITtsProvider {
         speaker = 'shubh';
       }
 
-      // Default language is hi-IN
-      const targetLanguageCode = options?.language || 'hi-IN';
+      // Map language code to standard Sarvam-compatible regional codes
+      let targetLanguageCode = options?.language || 'hi-IN';
+      const cleanLang = targetLanguageCode.toLowerCase().trim();
+      const langMapping: Record<string, string> = {
+        en: 'en-IN',
+        'en-in': 'en-IN',
+        'en-us': 'en-IN',
+        hi: 'hi-IN',
+        'hi-in': 'hi-IN',
+        hinglish: 'hi-IN',
+        bn: 'bn-IN',
+        'bn-in': 'bn-IN',
+        ta: 'ta-IN',
+        'ta-in': 'ta-IN',
+        te: 'te-IN',
+        'te-in': 'te-IN',
+        mr: 'mr-IN',
+        'mr-in': 'mr-IN',
+        gu: 'gu-IN',
+        'gu-in': 'gu-IN',
+        kn: 'kn-IN',
+        'kn-in': 'kn-IN',
+        ml: 'ml-IN',
+        'ml-in': 'ml-IN',
+        pa: 'pa-IN',
+        'pa-in': 'pa-IN',
+        ur: 'ur-IN',
+        'ur-in': 'ur-IN',
+        or: 'or-IN',
+        'or-in': 'or-IN',
+        as: 'as-IN',
+        'as-in': 'as-IN',
+      };
+      if (langMapping[cleanLang]) {
+        targetLanguageCode = langMapping[cleanLang];
+      }
 
       const response = await axios.post(
         endpoint,

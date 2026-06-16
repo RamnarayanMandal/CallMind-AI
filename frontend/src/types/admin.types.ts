@@ -44,3 +44,86 @@ export interface AdminSubscription {
   currentPeriodStart: string;
   currentPeriodEnd: string;
 }
+
+export interface AdminOrgBilling {
+  _id: string;
+  name: string;
+  industry: string;
+  ownerEmail: string;
+  usersCount: number;
+  planName: string;
+  minutesUsed: number;
+  minutesLimit: number;
+  aiCost: number;
+  callCost: number;
+  totalCost: number;
+  status: string;
+  createdAt: string;
+}
+
+export interface AdminOrgAgentStat {
+  _id: string;
+  name: string;
+  gender: string;
+  language: string;
+  isActive: boolean;
+  createdAt: string;
+  totalCalls: number;
+  totalMinutes: number;
+  aiCost: number;
+  callCost: number;
+  totalCost: number;
+}
+
+export interface AdminOrgDetail {
+  organization: {
+    _id: string;
+    name: string;
+    industry: string;
+    website: string;
+    about: string;
+    productInfo: string;
+    targetAudience: string;
+    tone: string;
+    ownerId: string;
+    createdAt: string;
+  };
+  admin: {
+    _id: string;
+    name: string;
+    email: string;
+    role: string;
+    isActive: boolean;
+    createdAt: string;
+  };
+  subscription: {
+    id: string;
+    planName: string;
+    planPrice: number;
+    status: string;
+    minutesUsed: number;
+    minutesLimit: number;
+    aiCostPer1kTokens: number;
+    telephonyCostPerMinute: number;
+    currentPeriodStart: string;
+    currentPeriodEnd: string;
+    createdAt: string;
+  } | null;
+  usageTrends: Array<{
+    date: string;
+    calls: number;
+    minutes: number;
+    aiCost: number;
+    callCost: number;
+  }>;
+  agents: AdminOrgAgentStat[];
+  recentCalls: Array<{
+    _id: string;
+    phoneNumber: string;
+    status: string;
+    outcome: string;
+    durationSeconds: number;
+    recordingUrl?: string;
+    createdAt: string;
+  }>;
+}

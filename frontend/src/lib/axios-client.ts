@@ -1,4 +1,5 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
+import { useAuthStore } from '@/store/auth.store';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1';
 
@@ -62,11 +63,12 @@ apiClient.interceptors.response.use(
           headers: { Authorization: `Bearer ${refreshToken}` }
         });
 
-        const { accessToken, refreshToken: newRefreshToken } = response.data;
+        const { accessToken, refreshToken: newRefreshToken } = response.data.data;
 
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && accessToken && newRefreshToken) {
           localStorage.setItem('accessToken', accessToken);
           localStorage.setItem('refreshToken', newRefreshToken);
+          document.cookie = `accessToken=${accessToken}; path=/; Max-Age=604800; SameSite=Lax; Secure`;
         }
 
         processQueue(null, accessToken);
@@ -75,8 +77,7 @@ apiClient.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         if (typeof window !== 'undefined') {
-          localStorage.removeItem('accessToken');
-          localStorage.removeItem('refreshToken');
+          useAuthStore.getState().clearAuth();
           window.location.href = '/login';
         }
         return Promise.reject(refreshError);

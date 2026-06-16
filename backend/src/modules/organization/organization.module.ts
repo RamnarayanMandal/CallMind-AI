@@ -5,6 +5,7 @@ import { OrganizationService, OrganizationRepository } from './organization.serv
 import { Organization, OrganizationSchema } from './schemas/organization.schema';
 import { User, UserSchema } from '../auth/schemas/user.schema';
 import { AgentModule } from '../agent/agent.module';
+import { SubscriptionModule } from '../subscription/subscription.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { AgentModule } from '../agent/agent.module';
       { name: User.name, schema: UserSchema },
     ]),
     forwardRef(() => AgentModule),
+    forwardRef(() => SubscriptionModule),
   ],
   controllers: [OrganizationController],
   providers: [OrganizationService, OrganizationRepository],

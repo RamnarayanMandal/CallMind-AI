@@ -1,95 +1,63 @@
 'use client';
-import { Bot, ShieldCheck, Zap, Globe, Users } from "lucide-react";
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
+
+import { Bot, PhoneCall, Shield, TrendingUp } from 'lucide-react';
+import NavBar from '@/components/homePageCompoment/NavBar';
+import Footer from '@/components/homePageCompoment/Footer';
+
+const values = [
+  { icon: Bot, title: 'Innovation', desc: 'Pushing the boundaries of AI voice technology to deliver human-like conversations.' },
+  { icon: PhoneCall, title: 'Reliability', desc: '99.9% uptime ensuring your business never misses a call.' },
+  { icon: Shield, title: 'Security', desc: 'Enterprise-grade encryption and data protection for all conversations.' },
+  { icon: TrendingUp, title: 'Scalability', desc: 'From startups to enterprises, our platform grows with your business.' },
+];
 
 export default function AboutPage() {
   return (
-    <div className="flex flex-col min-h-screen">
-      <nav className="fixed top-0 w-full z-50 glass border-b">
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.png" alt="CallMind AI" className="h-8 w-auto" />
-            <span className="text-xl font-bold tracking-tight">CallMind AI</span>
-          </Link>
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" asChild>
-              <Link href="/login">Login</Link>
-            </Button>
-            <Button asChild>
-              <Link href="/register">Get Started</Link>
-            </Button>
+    <div className="min-h-screen bg-neutral-950 text-white flex flex-col">
+      <NavBar/>
+
+      <main className="flex-1 mt-20">
+        <section className="py-20 px-6">
+          <div className="max-w-4xl mx-auto text-center">
+            <h1 className="text-4xl md:text-5xl font-bold mb-6">About CallMind AI</h1>
+            <p className="text-lg text-slate-400 leading-relaxed">
+              CallMind AI is a cutting-edge platform that enables businesses to deploy intelligent AI voice agents. 
+              Our technology handles inbound and outbound calls with natural, human-like conversations, 
+              helping businesses automate customer support, lead generation, and more.
+            </p>
           </div>
-        </div>
-      </nav>
+        </section>
 
-      <section className="pt-32 pb-20 bg-neutral-950 hero-gradient">
-        <div className="max-w-4xl mx-auto px-6 text-center">
-          <h1 className="text-5xl font-bold mb-8">Empowering business with <span className="gradient-text">Ethical AI</span></h1>
-          <p className="text-xl text-muted-foreground leading-relaxed">
-            Founded in 2024, CallMind AI was built with a single goal in mind: to help businesses scale their communications 
-            without losing the human touch. We believe that technology should enhance human interactions, not replace them.
-          </p>
-        </div>
-      </section>
-
-      <section className="py-24 border-y border-border/50">
-        <div className="max-w-7xl mx-auto px-6">
-          <div className="grid md:grid-cols-3 gap-12">
-            <div>
-              <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <ShieldCheck className="h-6 w-6 text-primary" />
-                Security First
-              </h3>
-              <p className="text-muted-foreground">
-                Your data security is our top priority. We use enterprise-grade encryption and follow strict compliance standards.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Globe className="h-6 w-6 text-primary" />
-                Global Scale
-              </h3>
-              <p className="text-muted-foreground">
-                Our infrastructure is built to handle millions of calls across 50+ countries with minimal latency.
-              </p>
-            </div>
-            <div>
-              <h3 className="text-2xl font-bold mb-4 flex items-center gap-2">
-                <Users className="h-6 w-6 text-primary" />
-                Customer Centric
-              </h3>
-              <p className="text-muted-foreground">
-                Every feature we build is driven by the feedback and needs of our growing community of users.
-              </p>
+        <section className="py-16 px-6 bg-neutral-900/50">
+          <div className="max-w-6xl mx-auto">
+            <h2 className="text-3xl font-bold text-center mb-12">Our Core Values</h2>
+            <div className="grid md:grid-cols-4 gap-6">
+              {values.map((v) => (
+                <div key={v.title} className="bg-neutral-900 rounded-xl p-6 border border-neutral-800 text-center">
+                  <div className="w-12 h-12 rounded-xl bg-blue-500/10 flex items-center justify-center mx-auto mb-4">
+                    <v.icon className="w-6 h-6 text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{v.title}</h3>
+                  <p className="text-sm text-slate-400">{v.desc}</p>
+                </div>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="py-24">
-        <div className="max-w-3xl mx-auto px-6 text-center">
-          <h2 className="text-3xl font-bold mb-8">Ready to transform your communication?</h2>
-          <div className="flex items-center justify-center gap-4">
-             <Button size="lg" className="rounded-xl px-8 h-12" asChild>
-                <Link href="/register">Join the Revolution</Link>
-             </Button>
-             <Button size="lg" variant="outline" className="rounded-xl px-8 h-12">
-                Contact Sales
-             </Button>
+        <section className="py-16 px-6">
+          <div className="max-w-4xl mx-auto text-center">
+            <h2 className="text-3xl font-bold mb-6">Our Mission</h2>
+            <p className="text-lg text-slate-400 leading-relaxed">
+              To transform business communication by making AI voice technology accessible, 
+              reliable, and human-like. We believe every business deserves a voice agent 
+              that represents their brand perfectly and delights their customers.
+            </p>
           </div>
-        </div>
-      </section>
+        </section>
+      </main>
 
-      <footer className="py-12 border-t border-border/50 bg-neutral-950 mt-auto">
-        <div className="max-w-7xl mx-auto px-6 text-center">
-          <Link href="/" className="flex items-center justify-center gap-2 mb-12 animate-fade-in">
-            <img src="/logo.png" alt="CallMind AI" className="h-10 w-auto" />
-            <span className="text-2xl font-bold tracking-tight text-neutral-100">CallMind AI</span>
-          </Link>
-          <p className="text-sm text-muted-foreground">© 2024 CallMind AI Platform. All rights reserved.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

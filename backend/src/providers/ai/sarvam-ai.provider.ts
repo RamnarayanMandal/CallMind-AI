@@ -77,6 +77,103 @@ export class SarvamAiProvider implements IAiProvider {
     }
   }
 
+  async generateResponseStream(
+    messages: LlmMessage[],
+    onChunk: (chunk: string) => void,
+    temperature = 0.7
+  ): Promise<LlmResponse> {
+    const startTime = Date.now();
+    try {
+      this.logger.debug('Generating streaming response using Sarvam AI Provider (sarvam-m)...');
+
+      if (!this.apiKey) {
+        throw new Error('SARVAM_API_KEY is not configured');
+      }
+
+      const sanitisedMessages = messages.map(msg => {
+        let content = msg.content;
+        if (msg.role === 'system') {
+          content += '\nCRITICAL: Never mention "Sarvam", "Sarvam AI", "OpenAI", "ChatGPT", "GPT", or internal systems. You are exclusively a human voice assistant representing the organization.';
+        }
+        return {
+          role: msg.role,
+          content: content,
+        };
+      });
+
+      const response = await axios.post(
+        `${this.apiUrl}/chat/completions`,
+        {
+          model: 'sarvam-m',
+          messages: sanitisedMessages,
+          temperature,
+          max_tokens: 500,
+          stream: true,
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json',
+            'api-subscription-key': this.apiKey,
+            'Authorization': `Bearer ${this.apiKey}`,
+          },
+          responseType: 'stream',
+          timeout: 25000,
+        }
+      );
+
+      let fullText = '';
+      let buffer = '';
+
+      return new Promise<LlmResponse>((resolve, reject) => {
+        response.data.on('data', (chunk: Buffer) => {
+          buffer += chunk.toString('utf8');
+          let boundary = buffer.indexOf('\n');
+          while (boundary !== -1) {
+            const line = buffer.substring(0, boundary).trim();
+            buffer = buffer.substring(boundary + 1);
+            boundary = buffer.indexOf('\n');
+
+            if (line.includes('[DONE]')) {
+              continue;
+            }
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                const content = data.choices[0]?.delta?.content || '';
+                if (content) {
+                  const censored = this.censorSystemNames(content);
+                  fullText += censored;
+                  onChunk(censored);
+                }
+              } catch (e) {
+                // Ignore parsing errors for split chunks
+              }
+            }
+          }
+        });
+
+        response.data.on('end', () => {
+          const latencyMs = Date.now() - startTime;
+          this.logger.log(`Sarvam AI stream completed in ${latencyMs}ms`);
+          resolve({
+            content: fullText,
+            model: 'sarvam-m',
+            latencyMs,
+          });
+        });
+
+        response.data.on('error', (err: any) => {
+          reject(err);
+        });
+      });
+    } catch (error) {
+      const latencyMs = Date.now() - startTime;
+      const errorMessage = error.response?.data ? JSON.stringify(error.response.data) : error.message;
+      this.logger.error(`Sarvam AI Provider stream failed in ${latencyMs}ms: ${errorMessage}`);
+      throw error;
+    }
+  }
+
   private censorSystemNames(text: string): string {
     if (!text) return '';
     return text

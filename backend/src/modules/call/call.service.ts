@@ -93,14 +93,20 @@ export class CallService {
   }
 
   async findOne(id: string): Promise<CallDocument> {
-    const call = await this.repo.findById(id);
+    const call = await this.repo['model'].findById(id).populate('customerId agentId').lean();
     if (!call) throw new NotFoundException('Call not found');
-    return call;
+    return call as any;
   }
 
   async findByCallSid(callSid: string): Promise<CallDocument> {
     const call = await this.repo.findOne({ callSid });
     return call;
+  }
+
+  async updateRecordingUrl(callSid: string, url: string, duration?: number): Promise<void> {
+    const update: any = { recordingUrl: url };
+    if (duration) update.recordingDuration = duration;
+    await this.repo['model'].findOneAndUpdate({ callSid }, update);
   }
 
   async updateOutcome(id: string, dto: UpdateCallOutcomeDto) {
@@ -110,15 +116,15 @@ export class CallService {
   async executeCall(callId: string): Promise<void> {
     const call = await this.findOne(callId);
     
-    // TODO: Uncomment this before going live when subscription/admin module is ready
-    // const canCall = await this.subscriptionService.canMakeCall(call.organizationId);
-    // if (!canCall) {
-    //   await this.repo.updateById(callId, {
-    //     status: CallStatus.FAILED,
-    //     errorMessage: 'Subscription limit reached or inactive plan',
-    //   });
-    //   throw new Error('Subscription limit reached');
-    // }
+    // Check subscription limits before making a call
+    const canCall = await this.subscriptionService.canMakeCall(call.organizationId);
+    if (!canCall) {
+      await this.repo.updateById(callId, {
+        status: CallStatus.FAILED,
+        errorMessage: 'Subscription limit reached or inactive plan',
+      });
+      throw new Error('Subscription limit reached');
+    }
 
     // Just enqueue the job and return immediately
     await this.callQueue.add('execute', { callId }, {

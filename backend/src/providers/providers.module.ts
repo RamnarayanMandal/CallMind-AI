@@ -16,12 +16,15 @@ import { AI_PROVIDER, LLM_PROVIDER } from './ai/ai.provider';
 import { SarvamAiProvider } from './ai/sarvam-ai.provider';
 import { ExistingAiProvider } from './ai/existing-ai.provider';
 
-// Telephony Providers
 import { TwilioTelephonyProvider } from './telephony/twilio.provider';
 import { TelnyxTelephonyProvider } from './telephony/telnyx.provider';
 import { VobizProvider } from './telephony/vobiz.provider';
 import { KnowlarityProvider } from './telephony/knowlarity.provider';
 import { TelephonyProviderFactory } from './telephony/telephony.factory';
+
+// Storage Providers
+import { CloudinaryProvider } from './storage/cloudinary.provider';
+
 
 @Global()
 @Module({
@@ -34,6 +37,9 @@ import { TelephonyProviderFactory } from './telephony/telephony.factory';
     SarvamTtsProvider,
     ExistingAiProvider,
     SarvamAiProvider,
+
+    // Storage Providers
+    CloudinaryProvider,
 
     // Telephony Implementations
     TwilioTelephonyProvider,
@@ -87,7 +93,8 @@ import { TelephonyProviderFactory } from './telephony/telephony.factory';
     TTS_PROVIDER,
     AI_PROVIDER,
     LLM_PROVIDER,
-    TelephonyProviderFactory, // Export the dynamic telephony factory instead of static provider
+    CloudinaryProvider,
+    TelephonyProviderFactory,
   ],
 })
 export class ProvidersModule {}

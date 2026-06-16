@@ -166,11 +166,20 @@ export default function AgentsPage() {
     }[tone] || 'professional';
 
     const langInstruction = {
-      'hi-IN': '- Respond ONLY in Hindi (transliterated or Devanagari).',
-      'hinglish': '- Respond in Hinglish (a natural mix of Hindi and English).',
-      'en-US': '- Respond in clear, professional US English.',
-      'en-IN': '- Respond in clear, professional Indian English.',
-      'es-ES': '- Respond in clear Spanish.',
+      en: '- Respond in clear, professional English.',
+      hi: '- Respond ONLY in Hindi (Devanagari or transliterated).',
+      hinglish: '- Respond in Hinglish (a natural mix of Hindi and English).',
+      bn: '- Respond ONLY in Bengali.',
+      ta: '- Respond ONLY in Tamil.',
+      te: '- Respond ONLY in Telugu.',
+      mr: '- Respond ONLY in Marathi.',
+      gu: '- Respond ONLY in Gujarati.',
+      kn: '- Respond ONLY in Kannada.',
+      ml: '- Respond ONLY in Malayalam.',
+      pa: '- Respond ONLY in Punjabi.',
+      ur: '- Respond ONLY in Urdu.',
+      or: '- Respond ONLY in Odia.',
+      as: '- Respond ONLY in Assamese.',
     }[language] || '- Respond in a clear, natural language.';
 
     const productsList = org.productInfo
@@ -387,11 +396,11 @@ If you do not know the answer, say: "Main aapko is matter mein help karne ki poo
                           <SelectValue placeholder="Select language" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="hi-IN">Hindi</SelectItem>
-                          <SelectItem value="hinglish">Hinglish</SelectItem>
-                          <SelectItem value="en-US">English (US)</SelectItem>
-                          <SelectItem value="en-IN">English (India)</SelectItem>
-                          <SelectItem value="es-ES">Spanish</SelectItem>
+                          {LANGUAGES.map(lang => (
+                            <SelectItem key={lang.code} value={lang.code}>
+                              {lang.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>

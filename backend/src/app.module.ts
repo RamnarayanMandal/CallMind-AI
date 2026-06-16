@@ -20,11 +20,14 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { MailModule } from './modules/mail/mail.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { ActionModule } from './modules/action/action.module';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { ProvidersModule } from './providers/providers.module';
 import { RedisModule } from './modules/redis/redis.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { ContactModule } from './modules/contact/contact.module';
 
 @Module({
   imports: [
@@ -91,6 +94,9 @@ import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.mod
     ProvidersModule,
     RedisModule,
     KnowledgeBaseModule,
+    ActionModule,
+    NotificationModule,
+    ContactModule,
   ],
   providers: [
     {

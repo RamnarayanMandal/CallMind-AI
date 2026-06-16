@@ -6,6 +6,7 @@ import { Response } from 'express';
 import { VobizLiveCallService } from './vobiz-live-call.service';
 import { CallService } from '../call/call.service';
 import { CallStatus } from '../call/schemas/call.schema';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 /**
  * Dedicated Vobiz (PlivoXML) voice controller.
@@ -26,6 +27,7 @@ export class VobizCallController {
   constructor(
     private readonly liveCallService: VobizLiveCallService,
     private readonly callService: CallService,
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   // ── Health check (reachability verification) ──────────────────────────────
@@ -70,6 +72,16 @@ export class VobizCallController {
     this.logger.log(`[RECORDING_RECEIVED] CallUUID=${callUuid} url=${recordingUrl} duration=${duration}s`);
 
     try {
+      // Save recording URL to Call document
+      if (recordingUrl && callUuid !== 'unknown') {
+        try {
+          await this.callService.updateRecordingUrl(callUuid, recordingUrl, Number(duration));
+          this.logger.log(`[RECORDING_SAVED] CallUUID=${callUuid} url=${recordingUrl.substring(0, 60)}...`);
+        } catch (saveErr) {
+          this.logger.warn(`[RECORDING_SAVE_ERROR] Could not save recording URL: ${saveErr.message}`);
+        }
+      }
+
       const xml = await this.liveCallService.handleRecording(body);
       this.logger.log(`[AUDIO_STREAM_STARTED] CallUUID=${callUuid} — playing AI response`);
       res.set('Content-Type', 'application/xml');
@@ -122,6 +134,16 @@ export class VobizCallController {
         case 'completed':
           this.logger.log(`[CALL_DISCONNECTED] callId=${callId} reason=${hangupCause}`);
           await this.callService.updateStatus(callId, CallStatus.COMPLETED);
+          // Save recording URL from hangup payload if present
+          const hangupRecordingUrl = body.RecordingUrl || body.recording_url || '';
+          if (hangupRecordingUrl) {
+            await this.callService.updateRecordingUrl(callUuid, hangupRecordingUrl, Number(body.BillDuration || body.Duration || 0));
+          }
+          // Increment subscription minutes used
+          const durationMinutes = Math.ceil((Number(body.BillDuration || body.Duration || 0)) / 60);
+          if (durationMinutes > 0) {
+            await this.subscriptionService.incrementMinutesUsed(call.organizationId, durationMinutes);
+          }
           await this.liveCallService.finalizeCall(callUuid, callId);
           break;
 

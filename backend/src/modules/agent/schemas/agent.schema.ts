@@ -12,14 +12,20 @@ export enum AgentTone {
   EMPATHETIC   = 'empathetic',
 }
 export enum AgentLanguage {
-  EN_US = 'en-US',
-  EN_IN = 'en-IN',
-  HI_IN = 'hi-IN',
+  EN = 'en',
+  HI = 'hi',
   HINGLISH = 'hinglish',
-  ES_ES = 'es-ES',
-  
-
-
+  BN = 'bn',
+  TA = 'ta',
+  TE = 'te',
+  MR = 'mr',
+  GU = 'gu',
+  KN = 'kn',
+  ML = 'ml',
+  PA = 'pa',
+  UR = 'ur',
+  OR = 'or',
+  AS = 'as',
 }
 
 @Schema({ timestamps: true, collection: 'agents' })

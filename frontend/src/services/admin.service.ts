@@ -1,5 +1,5 @@
 import api from '@/lib/axios-client';
-import { AdminUser, AdminStats, AdminSubscription } from '@/types/admin.types';
+import { AdminUser, AdminStats, AdminSubscription, AdminOrgBilling, AdminOrgDetail } from '@/types/admin.types';
 
 class AdminService {
   async getUsers(): Promise<AdminUser[]> {
@@ -19,6 +19,36 @@ class AdminService {
 
   async getSubscriptions(): Promise<AdminSubscription[]> {
     const response = await api.get('/admin/subscriptions');
+    return response.data;
+  }
+
+  async getOrganizations(): Promise<AdminOrgBilling[]> {
+    const response = await api.get('/admin/organizations');
+    return response.data;
+  }
+
+  async getOrganizationById(id: string): Promise<AdminOrgDetail> {
+    const response = await api.get(`/admin/organizations/${id}`);
+    return response.data;
+  }
+
+  async getMyOrganizations(): Promise<AdminOrgBilling[]> {
+    const response = await api.get('/admin/my-organizations');
+    return response.data;
+  }
+
+  async getMyOrganizationById(id: string): Promise<AdminOrgDetail> {
+    const response = await api.get(`/admin/my-organizations/${id}`);
+    return response.data;
+  }
+
+  async updateProfile(data: { name?: string; email?: string }): Promise<any> {
+    const response = await api.patch('/admin/profile', data);
+    return response.data;
+  }
+
+  async changePassword(data: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {
+    const response = await api.post('/admin/change-password', data);
     return response.data;
   }
 }

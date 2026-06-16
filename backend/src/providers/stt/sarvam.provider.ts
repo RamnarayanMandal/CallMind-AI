@@ -26,8 +26,42 @@ export class SarvamSttProvider implements ISttProvider {
       formData.append('file', new Blob([audioBuffer as any], { type: 'audio/webm' }), 'audio.webm');
       formData.append('model', 'saaras:v3');
       
-      // Default to Hindi/Hinglish (hi-IN)
-      const langCode = language || 'hi-IN';
+      // Map language code to standard Sarvam-compatible regional codes
+      let langCode = language || 'hi-IN';
+      const cleanLang = langCode.toLowerCase().trim();
+      const langMapping: Record<string, string> = {
+        en: 'en-IN',
+        'en-in': 'en-IN',
+        'en-us': 'en-IN',
+        hi: 'hi-IN',
+        'hi-in': 'hi-IN',
+        hinglish: 'hi-IN',
+        bn: 'bn-IN',
+        'bn-in': 'bn-IN',
+        ta: 'ta-IN',
+        'ta-in': 'ta-IN',
+        te: 'te-IN',
+        'te-in': 'te-IN',
+        mr: 'mr-IN',
+        'mr-in': 'mr-IN',
+        gu: 'gu-IN',
+        'gu-in': 'gu-IN',
+        kn: 'kn-IN',
+        'kn-in': 'kn-IN',
+        ml: 'ml-IN',
+        'ml-in': 'ml-IN',
+        pa: 'pa-IN',
+        'pa-in': 'pa-IN',
+        ur: 'ur-IN',
+        'ur-in': 'ur-IN',
+        or: 'or-IN',
+        'or-in': 'or-IN',
+        as: 'as-IN',
+        'as-in': 'as-IN',
+      };
+      if (langMapping[cleanLang]) {
+        langCode = langMapping[cleanLang];
+      }
       formData.append('language_code', langCode);
 
       const response = await axios.post(`${baseUrl}/speech-to-text`, formData, {

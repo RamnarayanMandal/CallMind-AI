@@ -6,6 +6,7 @@ import { Bot } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
+import { NotificationPanel } from './NotificationPanel';
 import { userRole } from '@/types/admin.types';
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -13,6 +14,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading) {
@@ -72,7 +74,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       </div>
 
       <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
-        <Navbar onMenuClick={() => setSidebarOpen(true)} />
+        <Navbar onMenuClick={() => setSidebarOpen(true)} onNotificationClick={() => setNotifOpen(true)} />
         <main className="flex-1 p-0 md:p-6 lg:p-8 overflow-y-auto">
           <div className="min-h-full bg-card/20 md:bg-card/40 backdrop-blur-sm border-0 md:border border-border/50 md:rounded-[2.5rem] p-4 md:p-8 lg:p-10 shadow-2xl shadow-black/20">
             <div className="max-w-7xl mx-auto animate-fade-in">
@@ -81,6 +83,8 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           </div>
         </main>
       </div>
+
+      <NotificationPanel open={notifOpen} onClose={() => setNotifOpen(false)} />
     </div>
   );
 }

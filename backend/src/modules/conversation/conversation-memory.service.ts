@@ -11,6 +11,9 @@ export class ConversationMemoryService {
   // Max number of messages to keep in history to avoid context bloat
   private readonly MAX_HISTORY_LENGTH = 30;
 
+  // In-memory fallback when Redis is unavailable
+  private memoryStore = new Map<string, { messages: LlmMessage[]; expiresAt?: number }>();
+
   constructor(
     private readonly redisService: RedisService,
     @Inject(LLM_PROVIDER) private readonly llmProvider: ILlmProvider,
@@ -21,13 +24,32 @@ export class ConversationMemoryService {
    */
   async getConversationMemory(sessionId: string): Promise<LlmMessage[]> {
     const key = this.getMemoryKey(sessionId);
-    const history = await this.redisService.get<LlmMessage[]>(key);
-    
-    if (history) {
-      this.logger.debug(`[${sessionId}] Memory loaded: ${history.length} messages`);
-      return history;
+
+    // Try Redis first
+    if (this.redisService.isRedisConnected()) {
+      try {
+        const history = await this.redisService.get<LlmMessage[]>(key);
+        if (history) {
+          this.logger.debug(`[${sessionId}] Memory loaded from Redis: ${history.length} messages`);
+          return history;
+        }
+      } catch (err) {
+        this.logger.warn(`[${sessionId}] Redis GET failed: ${err.message} — falling back to memory`);
+      }
     }
-    
+
+    // Fallback to in-memory store
+    const cached = this.memoryStore.get(key);
+    if (cached) {
+      if (cached.expiresAt && Date.now() > cached.expiresAt) {
+        this.memoryStore.delete(key);
+        this.logger.debug(`[${sessionId}] In-memory cache expired. Starting fresh.`);
+        return [];
+      }
+      this.logger.debug(`[${sessionId}] Memory loaded from in-memory: ${cached.messages.length} messages`);
+      return cached.messages;
+    }
+
     this.logger.debug(`[${sessionId}] No active memory found. Starting fresh.`);
     return [];
   }
@@ -50,8 +72,22 @@ export class ConversationMemoryService {
     }
 
     // Save back to Redis with TTL
-    await this.redisService.set(key, history, this.SESSION_TTL);
-    this.logger.debug(`[${sessionId}] Memory saved. Total messages: ${history.length}, Expires in: ${this.SESSION_TTL}s`);
+    if (this.redisService.isRedisConnected()) {
+      try {
+        await this.redisService.set(key, history, this.SESSION_TTL);
+        this.logger.debug(`[${sessionId}] Memory saved to Redis. Total messages: ${history.length}`);
+        return history;
+      } catch (err) {
+        this.logger.warn(`[${sessionId}] Redis SET failed: ${err.message} — falling back to memory`);
+      }
+    }
+
+    // Fallback: save to in-memory store
+    this.memoryStore.set(key, {
+      messages: history,
+      expiresAt: Date.now() + this.SESSION_TTL * 1000,
+    });
+    this.logger.debug(`[${sessionId}] Memory saved to in-memory. Total messages: ${history.length}`);
 
     return history;
   }
@@ -61,7 +97,19 @@ export class ConversationMemoryService {
    */
   async clearMemory(sessionId: string): Promise<void> {
     const key = this.getMemoryKey(sessionId);
-    await this.redisService.del(key);
+
+    // Clear from in-memory store
+    this.memoryStore.delete(key);
+
+    // Clear from Redis
+    if (this.redisService.isRedisConnected()) {
+      try {
+        await this.redisService.del(key);
+      } catch (err) {
+        this.logger.warn(`[${sessionId}] Redis DEL failed: ${err.message}`);
+      }
+    }
+
     this.logger.log(`[${sessionId}] Session memory cleaned up.`);
   }
 

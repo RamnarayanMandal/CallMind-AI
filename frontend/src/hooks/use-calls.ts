@@ -10,6 +10,12 @@ export function useCalls(organizationId: string, page = 1, limit = 10, search?: 
     queryKey: ['calls', organizationId, page, limit, search, status],
     queryFn: () => callService.getAll(organizationId, page, limit, search, status),
     enabled: !!organizationId,
+    // Poll every 10 seconds if there are in-progress calls
+    refetchInterval: (query) => {
+      const calls = query.state.data?.data || [];
+      const hasInProgress = calls.some(c => c.status === 'in-progress');
+      return hasInProgress ? 10000 : false;
+    },
   });
 
   const createCallMutation = useMutation({

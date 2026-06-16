@@ -10,7 +10,7 @@ export const analyticsService = {
   },
 
   async getRecentCalls(organizationId: string, limit = 10): Promise<Call[]> {
-    const response = await apiClient.get<any>('/call', {
+    const response = await apiClient.get<any>('/calls', {
       params: { organizationId, limit, sort: '-createdAt' },
     });
     return response.data;

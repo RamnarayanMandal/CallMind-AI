@@ -10,6 +10,9 @@ import { CallProcessor } from './call.processor';
 import { CustomerModule } from '../customer/customer.module';
 import { SubscriptionModule } from '../subscription/subscription.module';
 import { OrganizationModule } from '../organization/organization.module';
+import { AgentModule } from '../agent/agent.module';
+import { RedisModule } from '../redis/redis.module';
+import { AiModule } from '../ai/ai.module';
 
 @Module({
   imports: [
@@ -20,6 +23,9 @@ import { OrganizationModule } from '../organization/organization.module';
     CustomerModule,
     SubscriptionModule,
     OrganizationModule,
+    AgentModule,
+    RedisModule,
+    AiModule,
   ],
   controllers: [CallController],
   providers: [

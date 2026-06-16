@@ -7,10 +7,12 @@ import {
   TrendingUp,
   Clock,
   Plus,
-  MoreHorizontal,
   ArrowUpRight,
   ArrowDownRight,
-  Loader2
+  Loader2,
+  Eye,
+  XCircle,
+  Bot,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,6 +26,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { DashboardStats, Call } from "@/types";
 import { formatDistanceToNow } from "date-fns";
+import Link from "next/link";
 
 import { useAnalytics } from "@/hooks/useAnalytics";
 
@@ -36,7 +39,7 @@ export default function DashboardPage() {
     { title: 'Total Calls', value: stats?.callStats.total || 0, icon: Phone, up: true, change: '+0%' },
     { title: 'Completed', value: stats?.callStats.completed || 0, icon: CheckCircle2, up: true, change: '+0%' },
     { title: 'Avg. Duration', value: `${stats?.callStats.avgDuration || 0}s`, icon: Clock, up: true, change: '+0s' },
-    { title: 'Failed Calls', value: stats?.callStats.failed || 0, icon: TrendingUp, up: false, change: '0%' },
+    { title: 'Failed Calls', value: stats?.callStats.failed || 0, icon: XCircle, up: false, change: '0%' },
   ];
 
   if (isLoading) {
@@ -52,12 +55,14 @@ export default function DashboardPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard Overview</h1>
-          <p className="text-muted-foreground mt-1">Welcome back, here's what's happening with your agents.</p>
+          <p className="text-muted-foreground mt-1">Real-time updates from your active agents.</p>
         </div>
-        <Button className="h-11 px-6 rounded-xl gap-2">
-          <Plus className="h-4 w-4" />
-          New Campaign
-        </Button>
+        <Link href="/campaigns">
+          <Button className="h-11 px-6 rounded-xl gap-2">
+            <Plus className="h-4 w-4" />
+            New Campaign
+          </Button>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -92,7 +97,7 @@ export default function DashboardPage() {
                   <TableHead>Status</TableHead>
                   <TableHead>Outcome</TableHead>
                   <TableHead>Time</TableHead>
-                  <TableHead className="text-right pr-6"></TableHead>
+                  <TableHead className="text-right pr-6">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -104,12 +109,12 @@ export default function DashboardPage() {
                   </TableRow>
                 ) : (
                   recentCalls.map((call) => (
-                    <TableRow key={call._id} className="hover:bg-accent/20">
+                    <TableRow key={call._id} className="hover:bg-accent/20 cursor-pointer">
                       <TableCell className="pl-6 font-medium">
                         {call.phoneNumber}
                       </TableCell>
                       <TableCell>
-                        <Badge variant={call.status === 'completed' ? 'success' : 'destructive'} className="rounded-md capitalize">
+                        <Badge variant={call.status === 'completed' ? 'success' : call.status === 'failed' ? 'destructive' : 'secondary'} className="rounded-md capitalize">
                           {call.status}
                         </Badge>
                       </TableCell>
@@ -120,9 +125,12 @@ export default function DashboardPage() {
                         {formatDistanceToNow(new Date(call.createdAt), { addSuffix: true })}
                       </TableCell>
                       <TableCell className="text-right pr-6">
-                        <Button variant="ghost" size="icon">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
+                        <Link href={`/dashboard/calls/${call._id}`}>
+                          <Button variant="ghost" size="sm" className="gap-2">
+                            <Eye className="h-4 w-4" />
+                            View
+                          </Button>
+                        </Link>
                       </TableCell>
                     </TableRow>
                   ))

@@ -7,8 +7,11 @@ import { ConversationValidatorService } from './conversation-validator.service';
 import { TranscriptSanitizerService } from './transcript-sanitizer.service';
 import { ResponseCompletenessValidatorService } from './response-completeness-validator.service';
 import { ConversationOrchestratorService } from './conversation-orchestrator.service';
+import { ActionsService } from './actions.service';
+import { CustomerModule } from '../customer/customer.module';
 
 @Module({
+  imports: [CustomerModule],
   providers: [
     WhisperService,
     SarvamService,
@@ -18,6 +21,7 @@ import { ConversationOrchestratorService } from './conversation-orchestrator.ser
     TranscriptSanitizerService,
     ResponseCompletenessValidatorService,
     ConversationOrchestratorService,
+    ActionsService,
   ],
   exports: [
     WhisperService,
@@ -28,6 +32,7 @@ import { ConversationOrchestratorService } from './conversation-orchestrator.ser
     TranscriptSanitizerService,
     ResponseCompletenessValidatorService,
     ConversationOrchestratorService,
+    ActionsService,
   ],
 })
 export class AiModule {}

@@ -10,7 +10,10 @@ import {
   Bot,
   PieChart,
   Calendar,
-  Building2
+  Building2,
+  IndianRupee,
+  Headphones,
+  User
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -21,8 +24,10 @@ const menuItems = [
   { name: 'Agents', href: '/agents', icon: Bot },
   // { name: 'Analytics', href: '/analytics', icon: PieChart },
   { name: 'Campaigns', href: '/campaigns', icon: Calendar },
+  { name: 'Recordings', href: '/organization/recordings', icon: Headphones },
   { name: 'Organization', href: '/organization', icon: Building2 },
-  // { name: 'Settings', href: '/settings', icon: Settings },
+  { name: 'Billing', href: '/organization/billing', icon: IndianRupee },
+  { name: 'Profile', href: '/organization/profile', icon: User },
 ];
 
 export function Sidebar({ onClose }: { onClose?: () => void }) {

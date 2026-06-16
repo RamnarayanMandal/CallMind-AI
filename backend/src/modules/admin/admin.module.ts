@@ -8,6 +8,10 @@ import { Agent, AgentSchema } from '../agent/schemas/agent.schema';
 import { AdminGateway } from './admin.gateway';
 import { AuthModule } from '../auth/auth.module';
 import { PlatformConfig, PlatformConfigSchema } from './schemas/platform-config.schema';
+import { AdminAnalyticsService } from './admin-analytics.service';
+import { AdminAnalyticsController } from './admin-analytics.controller';
+import { Call, CallSchema } from '../call/schemas/call.schema';
+import { Organization, OrganizationSchema } from '../organization/schemas/organization.schema';
 
 @Module({
   imports: [
@@ -17,10 +21,12 @@ import { PlatformConfig, PlatformConfigSchema } from './schemas/platform-config.
       { name: Subscription.name, schema: SubscriptionSchema },
       { name: Agent.name, schema: AgentSchema },
       { name: PlatformConfig.name, schema: PlatformConfigSchema },
+      { name: Call.name, schema: CallSchema },
+      { name: Organization.name, schema: OrganizationSchema },
     ]),
   ],
-  providers: [AdminService, AdminGateway],
-  controllers: [AdminController],
-  exports: [AdminService, AdminGateway]
+  providers: [AdminService, AdminGateway, AdminAnalyticsService],
+  controllers: [AdminController, AdminAnalyticsController],
+  exports: [AdminService, AdminGateway, AdminAnalyticsService]
 })
 export class AdminModule {}

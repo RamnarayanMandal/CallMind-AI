@@ -42,20 +42,30 @@ export const authService = {
 
   setToken(token: string) {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('access_token', token);
+      localStorage.setItem('accessToken', token);
     }
   },
 
   clearToken() {
     if (typeof window !== 'undefined') {
-      localStorage.removeItem('access_token');
+      localStorage.removeItem('accessToken');
     }
   },
 
   getToken(): string | null {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('access_token');
+      return localStorage.getItem('accessToken');
     }
     return null;
+  },
+
+  async updateProfile(data: { name?: string; email?: string }): Promise<User> {
+    const response = await apiClient.patch<any>('/auth/profile', data);
+    return (response as any).data;
+  },
+
+  async changePassword(data: { currentPassword: string; newPassword: string }): Promise<{ message: string }> {
+    const response = await apiClient.post<any>('/auth/change-password', data);
+    return (response as any).data;
   },
 };

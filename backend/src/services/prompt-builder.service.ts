@@ -153,15 +153,48 @@ export class PromptBuilderService {
 
   private buildLanguageInstruction(language?: string): string {
     switch (language) {
+      case 'hi':
       case 'hi-IN':
         return '- Respond ONLY in Hindi (Devanagari or transliterated).';
       case 'hinglish':
         return '- Respond in Hinglish (natural mix of Hindi and English).';
+      case 'en':
       case 'en-US':
       case 'en-IN':
         return '- Respond in clear, professional English.';
-      case 'es-ES':
-        return '- Respond in Spanish.';
+      case 'bn':
+      case 'bn-IN':
+        return '- Respond ONLY in Bengali.';
+      case 'ta':
+      case 'ta-IN':
+        return '- Respond ONLY in Tamil.';
+      case 'te':
+      case 'te-IN':
+        return '- Respond ONLY in Telugu.';
+      case 'mr':
+      case 'mr-IN':
+        return '- Respond ONLY in Marathi.';
+      case 'gu':
+      case 'gu-IN':
+        return '- Respond ONLY in Gujarati.';
+      case 'kn':
+      case 'kn-IN':
+        return '- Respond ONLY in Kannada.';
+      case 'ml':
+      case 'ml-IN':
+        return '- Respond ONLY in Malayalam.';
+      case 'pa':
+      case 'pa-IN':
+        return '- Respond ONLY in Punjabi.';
+      case 'ur':
+      case 'ur-IN':
+        return '- Respond ONLY in Urdu.';
+      case 'or':
+      case 'or-IN':
+        return '- Respond ONLY in Odia.';
+      case 'as':
+      case 'as-IN':
+        return '- Respond ONLY in Assamese.';
       default:
         return '- Respond in a clear, natural language the customer uses.';
     }

@@ -30,16 +30,21 @@ export class OrgContextCacheService {
   /**
    * Get compiled org+agent profile from Redis cache using only agentId.
    * Scans keys for match, then returns cached profile.
+   * Returns null on Redis error — caller falls back to MongoDB.
    */
   async getCachedProfileByAgentId(agentId: string): Promise<CompiledOrgProfile | null> {
-    const pattern = `org:*:agent:${agentId}:profile`;
-    const keys = await this.redisService.scanKeys(pattern);
-    if (keys.length > 0) {
-      const cached = await this.redisService.get<CompiledOrgProfile>(keys[0]);
-      if (cached) {
-        this.logger.debug(`Cache HIT for agent=${agentId} via scan`);
-        return cached;
+    try {
+      const pattern = `org:*:agent:${agentId}:profile`;
+      const keys = await this.redisService.scanKeys(pattern);
+      if (keys.length > 0) {
+        const cached = await this.redisService.get<CompiledOrgProfile>(keys[0]);
+        if (cached) {
+          this.logger.debug(`Cache HIT for agent=${agentId} via scan`);
+          return cached;
+        }
       }
+    } catch (err) {
+      this.logger.warn(`Redis error in getCachedProfileByAgentId for ${agentId}: ${err.message} — falling back to DB`);
     }
     this.logger.debug(`Cache MISS for agent=${agentId} via scan`);
     return null;
@@ -47,17 +52,22 @@ export class OrgContextCacheService {
 
   /**
    * Get compiled org+agent profile from Redis cache.
-   * Returns null on miss — caller should build and store it.
+   * Returns null on miss or Redis error — caller should build and store it.
    */
   async getCachedProfile(orgId: string, agentId: string): Promise<CompiledOrgProfile | null> {
-    const key = this.buildKey(orgId, agentId);
-    const cached = await this.redisService.get<CompiledOrgProfile>(key);
-    if (cached) {
-      this.logger.debug(`Cache HIT for org=${orgId} agent=${agentId}`);
-    } else {
-      this.logger.debug(`Cache MISS for org=${orgId} agent=${agentId}`);
+    try {
+      const key = this.buildKey(orgId, agentId);
+      const cached = await this.redisService.get<CompiledOrgProfile>(key);
+      if (cached) {
+        this.logger.debug(`Cache HIT for org=${orgId} agent=${agentId}`);
+      } else {
+        this.logger.debug(`Cache MISS for org=${orgId} agent=${agentId}`);
+      }
+      return cached;
+    } catch (err) {
+      this.logger.warn(`Redis error in getCachedProfile for org=${orgId} agent=${agentId}: ${err.message} — falling back to DB`);
+      return null;
     }
-    return cached;
   }
 
   /**
@@ -101,9 +111,13 @@ export class OrgContextCacheService {
       compiledAt: Date.now(),
     };
 
-    const key = this.buildKey(orgId, agentId);
-    await this.redisService.set(key, profile, this.ORG_CACHE_TTL);
-    this.logger.debug(`Cached org profile for org=${orgId} agent=${agentId}`);
+    try {
+      const key = this.buildKey(orgId, agentId);
+      await this.redisService.set(key, profile, this.ORG_CACHE_TTL);
+      this.logger.debug(`Cached org profile for org=${orgId} agent=${agentId}`);
+    } catch (err) {
+      this.logger.warn(`Redis error in buildAndCacheProfile for org=${orgId} agent=${agentId}: ${err.message}`);
+    }
     return profile;
   }
 
@@ -112,11 +126,15 @@ export class OrgContextCacheService {
    * Scans for all agent keys under this org and deletes them.
    */
   async invalidateOrgCache(orgId: string): Promise<void> {
-    const pattern = `org:${orgId}:agent:*:profile`;
-    const keys = await this.redisService.scanKeys(pattern);
-    if (keys.length > 0) {
-      await this.redisService.delMany(keys);
-      this.logger.log(`Invalidated ${keys.length} cached profiles for org=${orgId}`);
+    try {
+      const pattern = `org:${orgId}:agent:*:profile`;
+      const keys = await this.redisService.scanKeys(pattern);
+      if (keys.length > 0) {
+        await this.redisService.delMany(keys);
+        this.logger.log(`Invalidated ${keys.length} cached profiles for org=${orgId}`);
+      }
+    } catch (err) {
+      this.logger.warn(`Redis error in invalidateOrgCache for org=${orgId}: ${err.message}`);
     }
   }
 
@@ -124,8 +142,13 @@ export class OrgContextCacheService {
    * Invalidate cached profile for a specific agent (e.g. when agent is updated).
    */
   async invalidateAgentCache(orgId: string, agentId: string): Promise<void> {
-    const key = this.buildKey(orgId, agentId);
-    await this.redisService.del(key);
-    this.logger.log(`Invalidated cached profile for org=${orgId} agent=${agentId}`);
+    try {
+      const key = this.buildKey(orgId, agentId);
+      await this.redisService.del(key);
+      this.logger.log(`Invalidated cached profile for org=${orgId} agent=${agentId}`);
+    } catch (err) {
+      this.logger.warn(`Redis error in invalidateAgentCache for org=${orgId} agent=${agentId}: ${err.message}`);
+    }
   }
+
 }

@@ -21,14 +21,16 @@ import {
   CheckCircle2, 
   XCircle, 
   AlertCircle,
-  MoreHorizontal,
+  Eye,
   PhoneCall,
   Search,
-  Filter
+  Filter,
+  Loader2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import Link from "next/link";
 
 export default function CampaignsPage() {
   const { user } = useAuth();
@@ -37,7 +39,7 @@ export default function CampaignsPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const debouncedSearch = useDebounce(searchTerm, 500);
   
-  const { calls, isLoading, executeCall } = useCalls(
+  const { calls, isLoading, executeCall, isExecuting } = useCalls(
     organizationId, 
     1, 
     50, 
@@ -146,7 +148,7 @@ export default function CampaignsPage() {
                   </TableRow>
                 ))
               ) : calls.map((call: any) => (
-                <TableRow key={call._id} className="hover:bg-accent/10 border-b border-border/10 transition-colors">
+                <TableRow key={call._id} className="hover:bg-accent/10 border-b border-border/10 transition-colors cursor-pointer">
                   <TableCell className="pl-8 py-4">
                     <span className="font-bold">{call.customerId?.name || 'Unknown'}</span>
                   </TableCell>
@@ -172,17 +174,26 @@ export default function CampaignsPage() {
                     </Badge>
                   </TableCell>
                   <TableCell className="pr-8 text-right">
-                    {call.status === 'pending' && (
-                      <Button 
-                        size="sm" 
-                        variant="ghost" 
-                        className="h-9 px-4 rounded-lg gap-2 text-primary hover:text-primary hover:bg-primary/10"
-                        onClick={() => executeCall(call._id)}
-                      >
-                        <Phone className="h-4 w-4" />
-                        Call Now
-                      </Button>
-                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      {call.status === 'pending' && (
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-9 px-4 rounded-lg gap-2 text-primary hover:text-primary hover:bg-primary/10"
+                          onClick={() => executeCall(call._id)}
+                          disabled={isExecuting}
+                        >
+                          <Phone className="h-4 w-4" />
+                          Call Now
+                        </Button>
+                      )}
+                      <Link href={`/dashboard/calls/${call._id}`}>
+                        <Button size="sm" variant="ghost" className="h-9 px-4 rounded-lg gap-2">
+                          <Eye className="h-4 w-4" />
+                          View
+                        </Button>
+                      </Link>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}

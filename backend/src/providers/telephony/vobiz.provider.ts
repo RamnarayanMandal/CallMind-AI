@@ -64,6 +64,8 @@ export class VobizProvider implements ITelephonyProvider {
         answer_method: 'POST',
         hangup_url:    hangupUrl,
         hangup_method: 'POST',
+        record:        'true',
+        record_direction: 'both'
       }),
     });
 

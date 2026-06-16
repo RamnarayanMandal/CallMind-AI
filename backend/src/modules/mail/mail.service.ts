@@ -77,6 +77,30 @@ export class MailService {
     });
   }
 
+  async sendContactNotification(adminEmail: string, contact: { name: string; email: string; phone: string; subject: string; message: string }) {
+    await this.transporter.sendMail({
+      from: `"${this.companyName}" <${process.env.SMTP_USER}>`,
+      to: adminEmail,
+      subject: `New Contact: ${contact.subject}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e2e8f0;">
+          <h2 style="color: #0f172a;">New Contact Message</h2>
+          <table style="width:100%; border-collapse:collapse; margin:16px 0;">
+            <tr><td style="padding:8px;border:1px solid #e2e8f0;color:#475569;font-weight:600;">Name</td><td style="padding:8px;border:1px solid #e2e8f0;color:#0f172a;">${contact.name}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #e2e8f0;color:#475569;font-weight:600;">Email</td><td style="padding:8px;border:1px solid #e2e8f0;color:#0f172a;">${contact.email}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #e2e8f0;color:#475569;font-weight:600;">Phone</td><td style="padding:8px;border:1px solid #e2e8f0;color:#0f172a;">${contact.phone}</td></tr>
+            <tr><td style="padding:8px;border:1px solid #e2e8f0;color:#475569;font-weight:600;">Subject</td><td style="padding:8px;border:1px solid #e2e8f0;color:#0f172a;">${contact.subject}</td></tr>
+          </table>
+          <div style="background:#f8fafc;padding:16px;border-radius:8px;margin:16px 0;">
+            <p style="color:#475569;font-weight:600;margin:0 0 8px;">Message:</p>
+            <p style="color:#0f172a;margin:0;">${contact.message}</p>
+          </div>
+          <p style="color:#94a3b8;font-size:12px;">View in admin panel: ${process.env.FRONTEND_URL || '#'}/admin/contact-us</p>
+        </div>
+      `,
+    });
+  }
+
   async sendForgotPasswordOtp(email: string, otp: string) {
     await this.transporter.sendMail({
       from: `"${this.companyName}" <${process.env.SMTP_USER}>`,

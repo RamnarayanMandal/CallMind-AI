@@ -6,10 +6,12 @@ import { ConversationMemoryService } from './conversation-memory.service';
 import { Conversation, ConversationSchema } from './schemas/conversation.schema';
 import { SarvamLlmProvider } from '@providers/llm/sarvam-llm.provider';
 import { LLM_PROVIDER } from '@providers/llm/llm.interface';
+import { ActionModule } from '../action/action.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: Conversation.name, schema: ConversationSchema }]),
+    ActionModule,
   ],
   controllers: [ConversationController],
   providers: [

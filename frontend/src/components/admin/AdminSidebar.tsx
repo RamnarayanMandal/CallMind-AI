@@ -11,16 +11,32 @@ import {
   Settings,
   PieChart,
   X,
-  LogOut
+  LogOut,
+  Shield,
+  Key,
+  Webhook,
+  Globe,
+  Building2,
+  MessageSquare,
+  Bot
 } from "lucide-react";
+import { Button } from "../ui/button";
 
 const adminNav = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
+  { name: 'Organizations', href: '/admin/organizations', icon: Building2 },
+  { name: 'My Organizations', href: '/admin/my-organizations', icon: Building2 },
+  {name: 'My Agents', href: '/admin/agents', icon: Bot },
   { name: 'Users', href: '/admin/users', icon: Users },
+  { name: 'Contact Messages', href: '/admin/contact-us', icon: MessageSquare },
   { name: 'Subscriptions', href: '/admin/subscriptions', icon: CreditCard },
   { name: 'Analytics', href: '/admin/analytics', icon: PieChart },
   { name: 'AI Monitoring', href: '/admin/monitoring', icon: Activity },
   { name: 'Infrastructure', href: '/admin/infrastructure', icon: Server },
+  { name: 'Audit Logs', href: '/admin/audit', icon: Shield },
+  { name: 'API Keys', href: '/admin/api-keys', icon: Key },
+  { name: 'Webhooks', href: '/admin/webhooks', icon: Webhook },
+  { name: 'GDPR', href: '/admin/gdpr', icon: Globe },
   { name: 'Settings', href: '/admin/settings', icon: Settings },
 ];
 
@@ -50,9 +66,9 @@ export function AdminSidebar({
           <Link href="/admin" onClick={onClose} className="flex items-center gap-3">
             <img src="/logo.png" alt="CallMind AI" className="h-8 w-auto" />
           </Link>
-          <button className="md:hidden text-slate-400 hover:text-white" onClick={onClose}>
+          <Button className="md:hidden text-slate-400 hover:text-white" onClick={onClose}>
             <X className="w-5 h-5" />
-          </button>
+          </Button>
         </div>
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">

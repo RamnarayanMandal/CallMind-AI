@@ -7,8 +7,8 @@ import { PaginationDto } from '@common/dto/pagination.dto';
 import { BaseRepository } from '@common/repositories/base.repository';
 import { User, UserDocument } from '../auth/schemas/user.schema';
 import { AgentService } from '../agent/agent.service';
-
 import { OrgContextCacheService } from '../redis/org-context-cache.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 
 @Injectable()
 export class OrganizationRepository extends BaseRepository<OrganizationDocument> {
@@ -25,12 +25,20 @@ export class OrganizationService {
     @Inject(forwardRef(() => AgentService))
     private readonly agentService: AgentService,
     private readonly cacheService: OrgContextCacheService,
+    @Inject(forwardRef(() => SubscriptionService))
+    private readonly subscriptionService: SubscriptionService,
   ) {}
 
   async create(dto: CreateOrganizationDto, ownerId: string) {
     const org = await this.repo.create({ ...dto, ownerId });
-    // Update the user's organizationId
+    // Assign this org to the user
     await this.userModel.findByIdAndUpdate(ownerId, { organizationId: org._id });
+    // Auto-provision a free trial subscription for the new org
+    try {
+      await this.subscriptionService.provisionFreeTrial(org._id.toString());
+    } catch (err) {
+      console.warn(`[TRIAL] Could not provision trial for org ${org._id}:`, err.message);
+    }
     return org;
   }
 

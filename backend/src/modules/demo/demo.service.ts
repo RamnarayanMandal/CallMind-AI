@@ -139,7 +139,10 @@ export class DemoService {
       emit('transcript', { role: 'agent', text: introText });
       emit('processing-status', { status: 'speaking' });
 
-      const audioResponse = await this.ttsService.generateSpeech(introText);
+      const audioResponse = await this.ttsService.generateSpeech(introText, {
+        language: agentContext?.language || 'hi-IN',
+        gender: agentContext?.gender || 'female',
+      });
       emit('audio-response', audioResponse);
       emit('processing-status', { status: 'idle' });
     } catch (error) {
@@ -165,7 +168,7 @@ export class DemoService {
     }
 
     // ── Demo timer guard ────────────────────────────────────────────────────
-    const maxDurationMins = this.configService.get<number>('DEMO_MAX_DURATION_MINUTES', 3);
+    const maxDurationMins = this.configService.get<number>('DEMO_MAX_DURATION_MINUTES', 5);
     if (Date.now() - session.startTime > maxDurationMins * 60 * 1000) {
       await this.handleTimeout(clientId, session, emit);
       return;
@@ -282,7 +285,10 @@ CRITICAL: Keep your response short and conversational (max 2 sentences). Sound n
       emit('transcript', { role: 'agent', text: healedResponseText });
       emit('processing-status', { status: 'speaking' });
 
-      const audioResponse = await this.ttsService.generateSpeech(healedResponseText);
+      const audioResponse = await this.ttsService.generateSpeech(healedResponseText, {
+        language: session.agentContext?.language || 'hi-IN',
+        gender: session.agentContext?.gender || 'female',
+      });
       emit('audio-response', audioResponse);
       emit('processing-status', { status: 'idle' });
 
@@ -322,13 +328,16 @@ CRITICAL: Keep your response short and conversational (max 2 sentences). Sound n
     const lang = session.agentContext?.language;
     const timeoutMsg =
       lang === 'hi-IN' || lang === 'hinglish'
-        ? 'Aapka demo session complete ho gaya hai. Dhanyavaad aur apna qeemti waqt dene ke liye shukriya!'
-        : 'Your demo session has ended. Thank you for your time!';
+        ? 'Aapka muft demo seema paar ho gayi hai. AI voice calling ka upyog jaari rakhne ke liye kripya apne subscription ko upgrade karein!'
+        : 'Your free demo limit has been reached. Please upgrade your subscription to continue using AI voice calling.';
 
     emit('transcript', { role: 'agent', text: timeoutMsg });
     emit('processing-status', { status: 'speaking' });
     try {
-      const audio = await this.ttsService.generateSpeech(timeoutMsg);
+      const audio = await this.ttsService.generateSpeech(timeoutMsg, {
+        language: session.agentContext?.language || 'hi-IN',
+        gender: session.agentContext?.gender || 'female',
+      });
       emit('audio-response', audio);
     } catch {}
     emit('processing-status', { status: 'idle' });

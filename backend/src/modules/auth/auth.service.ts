@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { JwtService } from '@nestjs/jwt';
@@ -106,7 +106,15 @@ export class AuthService {
       throw new UnauthorizedException('Please verify your email address before logging in. We have sent a verification email.');
     }
 
-    await this.auditService.log('LOGIN', user._id.toString(), user.email, 'unknown');
+    await this.auditService.log({
+      organizationId: user.organizationId?.toString() || '',
+      userId: user._id.toString(),
+      action: 'LOGIN',
+      resource: 'user',
+      resourceId: user._id.toString(),
+      details: { email: user.email },
+      status: 'success',
+    });
 
     return this.generateTokens(user);
   }
@@ -163,6 +171,30 @@ export class AuthService {
     return this.userModel.findById(userId).select('-password').lean();
   }
 
+  async updateProfile(userId: string, data: { name?: string; email?: string }) {
+    const update: any = {};
+    if (data.name) update.name = data.name;
+    if (data.email) update.email = data.email;
+    const user = await this.userModel.findByIdAndUpdate(userId, { $set: update }, { new: true })
+      .select('-password -refreshToken -__v');
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.userModel.findById(userId).select('+password');
+    if (!user) throw new NotFoundException('User not found');
+
+    const isMatch = await bcrypt.compare(currentPassword, user.password);
+    if (!isMatch) throw new UnauthorizedException('Current password is incorrect');
+
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return { message: 'Password updated successfully' };
+  }
+
   async forgotPassword(email: string) {
     const user = await this.userModel.findOne({ email });
     if (!user) throw new UnauthorizedException('User with this email not found');
@@ -212,11 +244,11 @@ export class AuthService {
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, {
         secret: this.configService.get<string>('jwt.secret'),
-        expiresIn: '15m', // Short-lived access token
+        expiresIn: this.configService.get<string>('jwt.expiresIn'),
       }),
       this.jwtService.signAsync(payload, {
-        secret: this.configService.get<string>('jwt.refreshSecret') || 'refresh-secret',
-        expiresIn: '7d', // Long-lived refresh token
+        secret: this.configService.get<string>('jwt.refreshSecret'),
+        expiresIn: this.configService.get<string>('jwt.refreshExpiresIn'),
       }),
     ]);
 

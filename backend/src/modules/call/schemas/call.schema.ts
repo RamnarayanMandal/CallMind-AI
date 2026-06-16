@@ -41,6 +41,12 @@ export class Call {
   callSid?: string;
 
   @Prop({ trim: true })
+  recordingUrl?: string;
+
+  @Prop({ trim: true })
+  recordingDuration?: number;
+
+  @Prop({ trim: true })
   telephonyProvider?: string;
 
   @Prop({ trim: true })
@@ -63,9 +69,56 @@ export class Call {
 
   @Prop({ default: 0 })
   retryCount: number;
+
+  // ── AI Usage Tracking ──────────────────────────────────────────────────────
+  @Prop({ default: 0 })
+  aiInputTokens?: number;
+
+  @Prop({ default: 0 })
+  aiOutputTokens?: number;
+
+  @Prop({ trim: true })
+  aiModel?: string;
+
+  @Prop({ default: 0 })
+  aiCost?: number;
+
+  // ── Voice Usage Tracking ───────────────────────────────────────────────────
+  @Prop({ default: 0 })
+  sttMinutes?: number;
+
+  @Prop({ default: 0 })
+  ttsCharacters?: number;
+
+  @Prop({ default: 0 })
+  ttsCost?: number;
+
+  // ── Telephony Usage Tracking ───────────────────────────────────────────────
+  @Prop({ default: 0 })
+  callMinutes?: number;
+
+  @Prop({ default: 0 })
+  incomingMinutes?: number;
+
+  @Prop({ default: 0 })
+  outgoingMinutes?: number;
+
+  @Prop({ default: 0 })
+  costPerMinute?: number;
+
+  @Prop({ default: 0 })
+  telephonyCost?: number;
+
+  // ── Recording Status ───────────────────────────────────────────────────────
+  @Prop({ type: String, enum: ['pending', 'processing', 'ready', 'failed'], default: 'pending' })
+  recordingStatus?: string;
+
+  @Prop({ default: 0 })
+  storageBytes?: number;
 }
 
 export const CallSchema = SchemaFactory.createForClass(Call);
 CallSchema.index({ organizationId: 1, status: 1 });
 CallSchema.index({ organizationId: 1, createdAt: -1 });
 CallSchema.index({ scheduledAt: 1, status: 1 });
+CallSchema.index({ recordingStatus: 1 });

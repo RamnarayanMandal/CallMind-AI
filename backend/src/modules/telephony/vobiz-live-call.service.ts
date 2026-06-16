@@ -8,7 +8,9 @@ import { WhisperService } from '../ai/whisper.service';
 import { SarvamService } from '../ai/sarvam.service';
 import { TtsService } from '../ai/tts.service';
 import { ConversationMemoryService } from '../conversation/conversation-memory.service';
+import { ConversationService } from '../conversation/conversation.service';
 import { AgentService } from '../agent/agent.service';
+import { OrganizationService } from '../organization/organization.service';
 import { RedisService } from '../redis/redis.service';
 import { OrgContextCacheService } from '../redis/org-context-cache.service';
 import { CallService } from '../call/call.service';
@@ -31,7 +33,9 @@ export class VobizLiveCallService {
     private readonly sarvamService: SarvamService,
     private readonly ttsService: TtsService,
     private readonly conversationMemory: ConversationMemoryService,
+    private readonly conversationService: ConversationService,
     private readonly agentService: AgentService,
+    private readonly organizationService: OrganizationService,
     private readonly callService: CallService,
     private readonly redisService: RedisService,
     private readonly orgCacheService: OrgContextCacheService,
@@ -44,8 +48,9 @@ export class VobizLiveCallService {
   async handleCallAnswered(body: any): Promise<string> {
     const callUuid = body.CallUUID || body.call_uuid || '';
     const sessionKey = `live_call:${callUuid}`;
+    const startTime = Date.now();
 
-    this.logger.log(`[AI_SESSION_STARTED] callId=${callUuid}`);
+    this.logger.log(`[AI_SESSION_STARTED] callId=${callUuid} timestamp=${new Date().toISOString()}`);
 
     // 1. Load call record to get agent info
     let agentContext: any = {};
@@ -55,26 +60,61 @@ export class VobizLiveCallService {
 
     try {
       const call = await this.callService.findByCallSid(callUuid);
-      if (call?.agentId) {
-        const cachedProfile = await this.orgCacheService.getCachedProfileByAgentId(call.agentId.toString());
-        if (cachedProfile) {
-          agentContext = cachedProfile.agentContext;
-          orgContext   = cachedProfile.orgContext;
-          systemPrompt = cachedProfile.systemPrompt;
+      if (call) {
+        // Initialize conversation record in MongoDB
+        try {
+          await this.conversationService.startConversation(call._id.toString(), call.organizationId.toString());
+          this.logger.log(`[CONVERSATION_STARTED] Created MongoDB conversation record for callId=${call._id}`);
+        } catch (convErr) {
+          this.logger.error(`[CONVERSATION_START_ERROR] Failed to start conversation: ${convErr.message}`);
+        }
 
-          this.logger.log(`[AI_SESSION_STARTED] agent=${agentContext?.name} org=${orgContext?.name}`);
+        if (call.agentId) {
+          const agentId = call.agentId.toString();
+          const contextLoadStart = Date.now();
+          const cachedProfile = await this.orgCacheService.getCachedProfileByAgentId(agentId);
+          this.logger.log(`[LATENCY] Context loaded in ${Date.now() - contextLoadStart}ms`);
 
-          // Generate personalized greeting
-          try {
-            this.logger.log(`[TTS_STARTED] generating intro for callId=${callUuid}`);
-            introText = await this.sarvamService.generateIntroResponse(
-              cachedProfile.introPrompt,
-              agentContext,
-              orgContext,
-            );
-            this.logger.log(`[TTS_GENERATED] intro="${introText.substring(0, 80)}"`);
-          } catch (err) {
-            this.logger.warn(`[TTS_ERROR] intro generation failed, using fallback: ${err.message}`);
+          if (cachedProfile) {
+            agentContext = cachedProfile.agentContext;
+            orgContext   = cachedProfile.orgContext;
+            systemPrompt = cachedProfile.systemPrompt;
+
+            this.logger.log(`[AI_SESSION_STARTED] agent=${agentContext?.name} org=${orgContext?.name}`);
+
+            // Generate greeting from template (instant, no LLM call)
+            introText = this.sarvamService.generateIntroFromTemplate(agentContext, orgContext);
+            this.logger.log(`[GREETING_GENERATED] intro="${introText.substring(0, 80)}" (0ms - template)`);
+          } else {
+            // Cache miss — load agent from MongoDB and build profile
+            this.logger.log(`[CACHE_MISS] Loading agent ${agentId} from MongoDB`);
+            try {
+              const agent = await this.agentService.findOne(agentId);
+              if (agent) {
+                agentContext = agent;
+                let org: any = {};
+                if (agent.organizationId) {
+                  org = await this.organizationService.findById(agent.organizationId);
+                }
+                orgContext = org;
+
+                const profile = await this.orgCacheService.buildAndCacheProfile(
+                  agentContext.organizationId || 'default',
+                  agentId,
+                  orgContext,
+                  agentContext,
+                );
+                systemPrompt = profile.systemPrompt;
+
+                this.logger.log(`[AI_SESSION_STARTED] agent=${agentContext?.name} (loaded from DB)`);
+
+                // Generate greeting from template (instant, no LLM call)
+                introText = this.sarvamService.generateIntroFromTemplate(agentContext, orgContext);
+                this.logger.log(`[GREETING_GENERATED] intro="${introText.substring(0, 80)}" (0ms - template)`);
+              }
+            } catch (err) {
+              this.logger.warn(`[AGENT_LOAD_ERROR] Failed to load agent ${agentId}: ${err.message}`);
+            }
           }
         }
       }
@@ -82,20 +122,24 @@ export class VobizLiveCallService {
       this.logger.warn(`[SESSION_LOAD_ERROR] ${err.message} — using defaults`);
     }
 
-    // 2. Initialize session in Redis
+    // 2. Initialize session in Redis (store greeting text for WebSocket to send)
     await this.redisService.set(sessionKey, {
       callUuid,
       systemPrompt,
       agentContext,
       orgContext,
+      greetingText: introText,
     }, 3600);
 
     // 3. Clear old memory for this call
     await this.conversationMemory.clearMemory(callUuid);
 
-    // 4. Return PlivoXML: Speak greeting + start recording user's response
-    this.logger.log(`[XML_RESPONSE_SENT] <Speak>${introText.substring(0, 80)}</Speak> + <Record>`);
-    return this.buildRecordXml(introText);
+    // 4. Log total latency
+    const totalLatency = Date.now() - startTime;
+    this.logger.log(`[LATENCY] Call answered → XML ready: ${totalLatency}ms`);
+    this.logger.log(`[XML_RESPONSE_SENT] <Stream> only (greeting will be sent via WebSocket)`);
+    this.logger.log(`[GREETING_QUEUED] text="${introText.substring(0, 80)}" — will be sent after WebSocket connects`);
+    return this.buildStreamXml();
   }
 
   // ── RECORDING RECEIVED — STT → LLM → TTS → next Record ────────────────────
@@ -179,8 +223,54 @@ export class VobizLiveCallService {
   async finalizeCall(callUuid: string, callId: string): Promise<void> {
     this.logger.log(`[CALL_DISCONNECTED] callId=${callId} callUuid=${callUuid}`);
     try {
+      // 1. Fetch transcript from Redis memory
+      const history = await this.conversationMemory.getConversationMemory(callUuid);
+      const transcript = history.map(msg => ({
+        role: msg.role === 'user' ? 'customer' as const : 'agent' as const,
+        content: msg.content,
+        timestamp: new Date()
+      }));
+
+      // 2. Fetch latencies from Redis session
+      const sessionKey = `live_call:${callUuid}`;
+      const session = await this.redisService.get<any>(sessionKey);
+      
+      let avgStt = 0;
+      let avgLlm = 0;
+      let avgTts = 0;
+      let avgTotal = 0;
+
+      if (session?.latencies && session.latencies.length > 0) {
+        const count = session.latencies.length;
+        let sumStt = 0, sumLlm = 0, sumTts = 0, sumTotal = 0;
+        for (const l of session.latencies) {
+          sumStt += l.stt || 0;
+          sumLlm += l.llm || 0;
+          sumTts += l.tts || 0;
+          sumTotal += l.total || 0;
+        }
+        avgStt = Math.round(sumStt / count);
+        avgLlm = Math.round(sumLlm / count);
+        avgTts = Math.round(sumTts / count);
+        avgTotal = Math.round(sumTotal / count);
+      }
+
+      // 3. Save transcript & average turn latencies in MongoDB
+      this.logger.log(`[CONVERSATION_SAVING] Saving ${transcript.length} turns to MongoDB for callId=${callId}`);
+      await this.conversationService.saveTranscriptAndMetrics(callId, transcript, {
+        avgStt,
+        avgLlm,
+        avgTts,
+        avgTotal
+      });
+
+      // 4. Summarize and classify outcome using LLM
+      this.logger.log(`[CONVERSATION_FINALIZING] Triggering sales analysis for callId=${callId}`);
+      await this.conversationService.finalizeConversation(callId);
+
+      // 5. Clean up memory and session
       await this.conversationMemory.clearMemory(callUuid);
-      await this.redisService.del(`live_call:${callUuid}`);
+      await this.redisService.del(sessionKey);
       this.logger.log(`[SESSION_CLEANED] callId=${callId}`);
     } catch (err) {
       this.logger.warn(`[FINALIZE_ERROR] ${err.message}`);
@@ -210,10 +300,32 @@ export class VobizLiveCallService {
   }
 
   /**
+   * Build a PlivoXML response that connects the call to our WebSocket Gateway.
+   * IMPORTANT: NO <Speak> element — greeting is sent through WebSocket.
+   * Vobiz processes XML sequentially — after <Speak> finishes, it sees
+   * "end of XML" and hangs up. By removing <Speak>, the call stays alive
+   * because the WebSocket connection remains active.
+   */
+  private buildStreamXml(): string {
+    const wsUrl = this.baseUrl.replace(/^http/, 'ws') + '/api/v1/telephony/vobiz/stream';
+
+    // Stream ONLY — no Speak element
+    // The greeting will be sent through the WebSocket after 'start' event
+    return [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<Response>',
+      `  <Stream url="${wsUrl}" keepCallAlive="true" statusCallback="${this.baseUrl}/api/v1/telephony/vobiz/events" statusCallbackEvent="connected started">`,
+      `    <Language>hi-IN</Language>`,
+      `  </Stream>`,
+      '</Response>',
+    ].join('\n');
+  }
+
+  /**
+   * (Deprecated for Live calls, now using WebSockets)
    * Build a PlivoXML response that:
-   * 1. Optionally speaks a message (AI response or greeting)
+   * 1. Optionally speaks a message
    * 2. Records the next user utterance (up to 15 seconds)
-   * 3. Posts the recording to /telephony/vobiz/recording for the next turn
    */
   private buildRecordXml(speakText?: string): string {
     const recordUrl = `${this.baseUrl}/api/v1/telephony/vobiz/recording`;

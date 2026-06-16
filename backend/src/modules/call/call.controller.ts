@@ -1,6 +1,8 @@
-import { Controller, Get, Post, Body, Param, Patch, UseGuards, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, Patch, UseGuards, Query, Res, Logger } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
+import { Response } from 'express';
+import axios from 'axios';
 import { CreateCallDto, UpdateCallOutcomeDto, CallQueryDto } from './dto/call.dto';
 import { PaginationDto } from '@common/dto/pagination.dto';
 import { CallService } from './call.service';
@@ -10,6 +12,8 @@ import { CallService } from './call.service';
 @UseGuards(AuthGuard('jwt'))
 @Controller('calls')
 export class CallController {
+  private readonly logger = new Logger(CallController.name);
+
   constructor(private readonly callService: CallService) {}
 
   @Post()
@@ -27,6 +31,37 @@ export class CallController {
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.callService.findOne(id);
+  }
+
+  @Get(':id/recording')
+  @ApiOperation({ summary: 'Proxy recording audio stream' })
+  async getRecording(@Param('id') id: string, @Res() res: Response) {
+    const call = await this.callService.findOne(id);
+    if (!call.recordingUrl) {
+      return res.status(404).json({ message: 'No recording available for this call' });
+    }
+
+    try {
+      const response = await axios.get(call.recordingUrl, {
+        responseType: 'stream',
+        timeout: 15000,
+        headers: {
+          'User-Agent': 'CallMind-AI/1.0',
+          'X-Auth-ID': process.env.VOBIZ_AUTH_ID || '',
+          'X-Auth-Token': process.env.VOBIZ_AUTH_TOKEN || '',
+        },
+      });
+
+      res.set({
+        'Content-Type': response.headers['content-type'] || 'audio/mpeg',
+        'Content-Length': response.headers['content-length'],
+        'Accept-Ranges': 'bytes',
+      });
+      response.data.pipe(res);
+    } catch (err) {
+      this.logger.error(`Recording proxy failed for call ${id}: ${err.message}`);
+      return res.status(502).json({ message: 'Failed to fetch recording' });
+    }
   }
 
   @Patch(':id/outcome')

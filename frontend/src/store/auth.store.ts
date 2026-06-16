@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthState>()(
       setAuth: (user, accessToken, refreshToken) => {
         // Set cookies for middleware
         if (typeof window !== 'undefined') {
-          document.cookie = `accessToken=${accessToken}; path=/; Max-Age=900; SameSite=Lax; Secure`;
+          document.cookie = `accessToken=${accessToken}; path=/; Max-Age=604800; SameSite=Lax; Secure`;
           document.cookie = `userRole=${user.role}; path=/; Max-Age=604800; SameSite=Lax; Secure`;
 
           localStorage.setItem('accessToken', accessToken);

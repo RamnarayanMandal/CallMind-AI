@@ -12,6 +12,11 @@ export interface LlmResponse {
 
 export interface IAiProvider {
   generateResponse(messages: LlmMessage[], temperature?: number): Promise<LlmResponse>;
+  generateResponseStream(
+    messages: LlmMessage[],
+    onChunk: (chunk: string) => void,
+    temperature?: number,
+  ): Promise<LlmResponse>;
 }
 
 export const AI_PROVIDER = 'AI_PROVIDER';
