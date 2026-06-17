@@ -28,7 +28,7 @@ function StatusBadge({ status }: { status: string }) {
   const cfg = map[status] ?? { icon: <AlertTriangle className="w-4 h-4" />, cls: 'bg-yellow-900/40 text-yellow-400 border-yellow-800' };
   return (
     <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full border ${cfg.cls}`}>
-      {cfg.icon} {status.replace('-', ' ').toUpperCase()}
+      {cfg.icon} {(status ?? '').replace('-', ' ').toUpperCase()}
     </span>
   );
 }
@@ -43,7 +43,7 @@ function OutcomeBadge({ outcome }: { outcome: string }) {
   const cfg = map[outcome] ?? { cls: 'bg-slate-800 text-slate-400 border-slate-700' };
   return (
     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${cfg.cls}`}>
-      {outcome.replace('-', ' ').toUpperCase()}
+      {(outcome ?? '').replace('-', ' ').toUpperCase()}
     </span>
   );
 }

@@ -27,7 +27,7 @@ const adminNav = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Organizations', href: '/admin/organizations', icon: Building2 },
   { name: 'My Organizations', href: '/admin/my-organizations', icon: Building2 },
-  {name:"Call History",herf:"/admin/call-history", icon:Phone},
+  {name:"Call History",href:"/admin/call-history", icon:Phone},
   {name: 'My Agents', href: '/admin/agents', icon: Bot },
   { name: 'Users', href: '/admin/users', icon: Users },
   { name: 'Contact Messages', href: '/admin/contact-us', icon: MessageSquare },

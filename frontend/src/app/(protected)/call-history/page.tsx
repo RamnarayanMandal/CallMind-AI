@@ -40,6 +40,7 @@ export default function CallHistoryPage() {
   const limit = 20;
 
   const { data, isLoading, isError } = useCallHistory(user?.organizationId || '', page, limit);
+  console.log(data,"data")
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">

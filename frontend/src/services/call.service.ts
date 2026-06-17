@@ -1,6 +1,13 @@
 import { apiClient } from '@/lib/axios-client';
 import { Call } from '@/types';
 
+// Matches the backend TransformInterceptor response: { success, data, meta }
+interface WrapperResponse<T, M = any> {
+  success: boolean;
+  data: T;
+  meta?: M;
+}
+
 export interface CreateCallPayload {
   agentId: string;
   customerId: string;
@@ -27,20 +34,20 @@ export const callService = {
     if (options.page) params.append('page', options.page.toString());
     if (options.search) params.append('search', options.search);
 
-    const response = await apiClient.get(`/calls?${params.toString()}`);
-    return response.data;
+    const result = await apiClient.get(`/calls?${params.toString()}`) as WrapperResponse<Call[], { total: number }>;
+    return { calls: result.data, total: result.meta?.total ?? 0 };
   },
 
   // Alias for consistent naming with other services
   getAll: async (organizationId: string, page = 1, limit = 10, search?: string, status?: string): Promise<{ data: Call[]; meta: { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean } }> => {
-    const response = await apiClient.get('/calls', { params: { organizationId, page, limit, search, status } });
-    return response.data;
+    const result = await apiClient.get('/calls', { params: { organizationId, page, limit, search, status } }) as WrapperResponse<Call[], { total: number; page: number; limit: number; totalPages: number; hasNextPage: boolean; hasPrevPage: boolean }>;
+    return { data: result.data, meta: result.meta! };
   },
 
   // Get a specific call by ID
   getCallById: async (callId: string): Promise<Call> => {
-    const response = await apiClient.get(`/calls/${callId}`);
-    return response.data;
+    const { data } = await apiClient.get(`/calls/${callId}`);
+    return data;
   },
 
   // Initiate a new call
@@ -51,8 +58,8 @@ export const callService = {
     phoneNumber?: string;
     scheduledAt?: string;
   }): Promise<Call> => {
-    const response = await apiClient.post(`/calls`, data);
-    return response.data;
+    const { data: result } = await apiClient.post(`/calls`, data);
+    return result;
   },
 
   // Execute a call (trigger the actual outbound call)
@@ -70,10 +77,10 @@ export const callService = {
 
   // Get call history with conversations
   getCallHistory: async (organizationId: string, page = 1, limit = 20): Promise<{ data: any[]; meta: any }> => {
-    const response = await apiClient.get('/calls/history/list', {
+    const result = await apiClient.get('/calls/history/list', {
       params: { organizationId, page, limit },
-    });
-    return response.data;
+    }) as WrapperResponse<any[], any>;
+    return { data: result.data, meta: result.meta ?? {} };
   },
 
   // Delete a call (and optionally its recording)
