@@ -42,31 +42,8 @@ export class ContactService {
         { contactId: contact._id.toString() },
       );
 
-      // Enqueue job for sending email notification to the user's requested email: ramnarayan847230@gmail.com
-      await this.mailQueue.add(
-        'send-contact-email',
-        {
-          to: 'ramnarayan847230@gmail.com',
-          contact: {
-            name: dto.name,
-            email: dto.email,
-            phone: dto.phone,
-            subject: dto.subject,
-            message: dto.message,
-          },
-        },
-        {
-          attempts: 3,
-          backoff: { type: 'exponential', delay: 5000 },
-          removeOnComplete: true,
-        },
-      );
-
-      // Enqueue jobs for other admins instead of sending them synchronously
+      // Enqueue email for each admin dynamically
       for (const email of adminEmails) {
-        // Skip if it is already ramnarayan847230@gmail.com to avoid double emails
-        if (email === 'ramnarayan847230@gmail.com') continue;
-
         await this.mailQueue.add(
           'send-contact-email',
           {
