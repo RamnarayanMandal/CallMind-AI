@@ -7,17 +7,23 @@ export interface LlmResponse {
   content: string;
   tokensUsed?: number;
   model?: string;
-  latencyMs?: number; // Track AI generation time
+  latencyMs?: number;
 }
 
 export interface IAiProvider {
-  generateResponse(messages: LlmMessage[], temperature?: number): Promise<LlmResponse>;
+  generateResponse(
+    messages: LlmMessage[],
+    temperature?: number,
+    signal?: AbortSignal,           // ← Phase 2: abort support
+  ): Promise<LlmResponse>;
+
   generateResponseStream(
     messages: LlmMessage[],
     onChunk: (chunk: string) => void,
     temperature?: number,
+    signal?: AbortSignal,           // ← Phase 2: abort support
   ): Promise<LlmResponse>;
 }
 
-export const AI_PROVIDER = 'AI_PROVIDER';
-export const LLM_PROVIDER = 'LLM_PROVIDER'; // Maintain compatibility with old LLM_PROVIDER
+export const AI_PROVIDER  = 'AI_PROVIDER';
+export const LLM_PROVIDER = 'LLM_PROVIDER';

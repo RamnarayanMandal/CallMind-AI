@@ -13,6 +13,8 @@ import { ConversationModule } from '../conversation/conversation.module';
 import { AgentModule } from '../agent/agent.module';
 import { RedisModule } from '../redis/redis.module';
 import { OrganizationModule } from '../organization/organization.module';
+import { CallStateMachineService } from './call-state-machine.service';
+import { FillerDetectorService } from './filler-detector.service';
 
 @Module({
   imports: [
@@ -28,7 +30,7 @@ import { OrganizationModule } from '../organization/organization.module';
     }),
   ],
   controllers: [TelephonyWebhookController, VobizCallController],
-  providers: [TelephonyProcessor, TelephonyService, VobizLiveCallService, VobizStreamGateway],
+  providers: [TelephonyProcessor, TelephonyService, VobizLiveCallService, VobizStreamGateway,CallStateMachineService,FillerDetectorService],
   exports: [BullModule, TelephonyService],
 })
 export class TelephonyModule { }

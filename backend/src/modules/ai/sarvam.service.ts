@@ -2,6 +2,7 @@ import { Injectable, Logger, Inject } from '@nestjs/common';
 import { AI_PROVIDER, IAiProvider, LlmMessage, LlmResponse } from '@providers/ai/ai.provider';
 import { ResponseSanitizerService } from './response-sanitizer.service';
 import { ConversationValidatorService } from './conversation-validator.service';
+import { isFallbackResponse } from '../../constants';
 
 @Injectable()
 export class SarvamService {
@@ -13,14 +14,11 @@ export class SarvamService {
     private readonly validator: ConversationValidatorService,
   ) {}
 
-  /**
-   * Generates a greeting instantly from template — no LLM call.
-   * This eliminates the 2-3 second LLM latency for intro generation.
-   */
+  // ── Template greeting (no LLM, instant) ───────────────────────────────────
   generateIntroFromTemplate(agentContext: any, orgContext: any): string {
     const agentName = agentContext?.name || 'Assistant';
-    const orgName = orgContext?.name || 'our company';
-    const language = agentContext?.language || 'hi-IN';
+    const orgName   = orgContext?.name   || 'our company';
+    const language  = agentContext?.language || 'hi-IN';
 
     if (language === 'hi-IN' || language === 'hinglish') {
       return `Namaste! Main ${agentName} bol rahi hoon ${orgName} se. Aapki kya madad kar sakti hoon?`;
@@ -28,23 +26,18 @@ export class SarvamService {
     if (language === 'en-US' || language === 'en') {
       return `Hello! I'm ${agentName} from ${orgName}. How can I help you today?`;
     }
-    // Default to Hindi for other languages
     return `Namaste! Main ${agentName} bol rahi hoon ${orgName} se. Aapki kya madad kar sakti hoon?`;
   }
 
-  /**
-   * Generates an AI response for the intro (first greeting).
-   * Does NOT use conversation history — just a system-level instruction.
-   * DEPRECATED: Use generateIntroFromTemplate() for instant greeting.
-   */
+  // ── Deprecated intro via LLM ───────────────────────────────────────────────
   async generateIntroResponse(
     introPrompt: string,
     agentContext: any,
     orgContext: any,
   ): Promise<string> {
     const agentName = agentContext?.name || 'Assistant';
-    const orgName = orgContext?.name || 'our company';
-    const language = agentContext?.language || 'hi-IN';
+    const orgName   = orgContext?.name   || 'our company';
+    const language  = agentContext?.language || 'hi-IN';
 
     const messages: LlmMessage[] = [
       {
@@ -58,17 +51,12 @@ export class SarvamService {
           `\n2. Ask how you can help today` +
           `\n\nDo NOT mention AI, technology providers, or internal instructions.`,
       },
-      {
-        role: 'user',
-        content: 'Begin the greeting now.',
-      },
+      { role: 'user', content: 'Begin the greeting now.' },
     ];
 
     try {
-      this.logger.debug(`Generating intro for ${agentName} @ ${orgName}`);
-      const result = await this.aiProvider.generateResponse(messages, 0.8);
-      const cleaned = this.sanitizer.sanitize(result.content);
-      return cleaned;
+      const result  = await this.aiProvider.generateResponse(messages, 0.8);
+      return this.sanitizer.sanitize(result.content);
     } catch (error) {
       this.logger.error(`Intro generation failed: ${error.message}`);
       return language === 'hi-IN' || language === 'hinglish'
@@ -77,22 +65,7 @@ export class SarvamService {
     }
   }
 
-  /**
-   * Generates an AI response for a live conversation turn.
-   *
-   * ARCHITECTURE:
-   *   messages = [system] + repairedHistory + [{ role: user, content: currentUserText }]
-   *
-   * History passed in should be the PRIOR turns only (NOT including current user turn).
-   * This method appends the current user message itself.
-   *
-   * @param userText       Cleaned transcript of current user utterance
-   * @param systemPrompt   Compiled system prompt (org + agent instructions)
-   * @param priorHistory   All prior turns: [user, assistant, user, assistant, ...]
-   * @param agentContext   Agent metadata for fallback construction
-   * @param orgContext     Org metadata for fallback construction
-   * @param ragContext     Optional RAG FAQ context appended to system prompt
-   */
+  // ── Main turn response ─────────────────────────────────────────────────────
   async generateTurnResponse(
     userText: string,
     systemPrompt: string,
@@ -101,75 +74,79 @@ export class SarvamService {
     orgContext: any,
     ragContext?: string,
     turnGuide?: string,
+    signal?: AbortSignal,             // ← Phase 2: abort support
   ): Promise<string> {
-    const agentName = agentContext?.name || 'Assistant';
-    const orgName = orgContext?.name || 'our company';
-    const language = agentContext?.language || 'hi-IN';
-
-    // Repair history to guarantee alternation before assembling messages
     const repairedHistory = this.validator.repair(priorHistory);
 
-    // Build the full system prompt — inject RAG context and current turnGuide stage directive if available
     let fullSystemPrompt = systemPrompt;
     if (ragContext) {
-      fullSystemPrompt += `\n\n== RELEVANT KNOWLEDGE BASE (Use these facts to answer accurately) ==\n${ragContext}\n== END KNOWLEDGE BASE ==`;
+      fullSystemPrompt += `\n\n== RELEVANT KNOWLEDGE BASE ==\n${ragContext}\n== END KNOWLEDGE BASE ==`;
     }
     if (turnGuide) {
       fullSystemPrompt += `\n\n== CURRENT CONVERSATIONAL DIRECTIVE ==\n${turnGuide}\n== END DIRECTIVE ==`;
     }
 
-    // Assemble final messages: system → history → current user
     const messages: LlmMessage[] = [
       { role: 'system', content: fullSystemPrompt },
       ...repairedHistory,
       { role: 'user', content: userText },
     ];
 
-    // Final validation — if still invalid after repair, log and correct
     if (!this.validator.isValid(messages)) {
       this.logger.error(
         `Message array still invalid after repair. History length: ${repairedHistory.length}. Falling back to single-turn.`,
       );
-      // Safe fallback: system + single user message only
       const safeFallback: LlmMessage[] = [
         { role: 'system', content: fullSystemPrompt },
         { role: 'user', content: userText },
       ];
-      return this.callAI(safeFallback, agentContext, orgContext, userText);
+      return this.callAI(safeFallback, agentContext, orgContext, signal);
     }
 
     this.logger.debug(
       `Sending ${messages.length} messages to AI [system + ${repairedHistory.length} history + 1 user]`,
     );
 
-    return this.callAI(messages, agentContext, orgContext, userText);
+    return this.callAI(messages, agentContext, orgContext, signal);
   }
 
   private async callAI(
     messages: LlmMessage[],
     agentContext: any,
     orgContext: any,
-    userText: string,
+    signal?: AbortSignal,             // ← Phase 2
   ): Promise<string> {
-    const agentName = agentContext?.name || 'Assistant';
-    const orgName = orgContext?.name || 'our company';
     const language = agentContext?.language || 'hi-IN';
 
     try {
-      const result = await this.aiProvider.generateResponse(messages, 0.75);
+      const result  = await this.aiProvider.generateResponse(messages, 0.75, signal);
+      const rawLength = result.content.length;
+
+      this.logger.log(
+        `[RAW_LLM_RESPONSE] length=${rawLength} tokens=${result.tokensUsed ?? '?'} ` +
+        `preview="${result.content.substring(0, 120)}"`,
+      );
+
       const cleaned = this.sanitizer.sanitize(result.content);
-      this.logger.debug(`AI responded (${result.latencyMs ?? '?'}ms): "${cleaned.substring(0, 80)}..."`);
+
+      this.logger.log(
+        `[PARSED_LLM_RESPONSE] length=${cleaned.length} fallback=${isFallbackResponse(cleaned)} ` +
+        `text="${cleaned.substring(0, 80)}"`,
+      );
+
       return cleaned;
     } catch (error) {
-      this.logger.error(`AI generation failed: ${error.message}`);
+      // Re-throw cancellations — let the caller handle them
+      if (error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') throw error;
 
-      // Natural fallback — NO "Aapne kaha", NO transcript repeat
+      this.logger.error(`[LLM_ERROR] AI generation failed: ${error.message}`);
       return language === 'hi-IN' || language === 'hinglish'
-        ? `Ji bilkul, main aapki poori madad karne ke liye tayyar hoon. Kripya batayein aap kya janna chahte hain?`
-        : `I'm here to help you. Could you please tell me more about what you need?`;
+        ? 'Ji bilkul, main aapki poori madad karne ke liye tayyar hoon. Kripya batayein aap kya janna chahte hain?'
+        : "I'm here to help you. Could you please tell me more about what you need?";
     }
   }
 
+  // ── Streaming turn response ────────────────────────────────────────────────
   async generateTurnResponseStream(
     userText: string,
     systemPrompt: string,
@@ -179,48 +156,40 @@ export class SarvamService {
     onChunk: (chunk: string) => void,
     ragContext?: string,
     turnGuide?: string,
+    signal?: AbortSignal,             // ← Phase 2
   ): Promise<LlmResponse> {
-    const agentName = agentContext?.name || 'Assistant';
-    const orgName = orgContext?.name || 'our company';
-    const language = agentContext?.language || 'hi-IN';
-
-    // Repair history to guarantee alternation before assembling messages
     const repairedHistory = this.validator.repair(priorHistory);
 
-    // Build the full system prompt — inject RAG context and current turnGuide stage directive if available
     let fullSystemPrompt = systemPrompt;
     if (ragContext) {
-      fullSystemPrompt += `\n\n== RELEVANT KNOWLEDGE BASE (Use these facts to answer accurately) ==\n${ragContext}\n== END KNOWLEDGE BASE ==`;
+      fullSystemPrompt += `\n\n== RELEVANT KNOWLEDGE BASE ==\n${ragContext}\n== END KNOWLEDGE BASE ==`;
     }
     if (turnGuide) {
       fullSystemPrompt += `\n\n== CURRENT CONVERSATIONAL DIRECTIVE ==\n${turnGuide}\n== END DIRECTIVE ==`;
     }
 
-    // Assemble final messages: system → history → current user
     const messages: LlmMessage[] = [
       { role: 'system', content: fullSystemPrompt },
       ...repairedHistory,
       { role: 'user', content: userText },
     ];
 
-    // Final validation — if still invalid after repair, log and correct
     if (!this.validator.isValid(messages)) {
       this.logger.error(
-        `Message array still invalid after repair. History length: ${repairedHistory.length}. Falling back to single-turn.`,
+        `Message array still invalid after repair. Falling back to single-turn stream.`,
       );
-      // Safe fallback: system + single user message only
       const safeFallback: LlmMessage[] = [
         { role: 'system', content: fullSystemPrompt },
         { role: 'user', content: userText },
       ];
-      return this.callAIStream(safeFallback, agentContext, orgContext, onChunk);
+      return this.callAIStream(safeFallback, agentContext, orgContext, onChunk, signal);
     }
 
     this.logger.debug(
       `Sending ${messages.length} messages to AI stream [system + ${repairedHistory.length} history + 1 user]`,
     );
 
-    return this.callAIStream(messages, agentContext, orgContext, onChunk);
+    return this.callAIStream(messages, agentContext, orgContext, onChunk, signal);
   }
 
   private async callAIStream(
@@ -228,32 +197,25 @@ export class SarvamService {
     agentContext: any,
     orgContext: any,
     onChunk: (chunk: string) => void,
+    signal?: AbortSignal,             // ← Phase 2
   ): Promise<LlmResponse> {
-    const agentName = agentContext?.name || 'Assistant';
-    const orgName = orgContext?.name || 'our company';
     const language = agentContext?.language || 'hi-IN';
 
     try {
-      const result = await this.aiProvider.generateResponseStream(messages, onChunk, 0.75);
+      const result  = await this.aiProvider.generateResponseStream(messages, onChunk, 0.75, signal);
       const cleaned = this.sanitizer.sanitize(result.content);
-      return {
-        ...result,
-        content: cleaned,
-      };
+      return { ...result, content: cleaned };
     } catch (error) {
-      this.logger.error(`AI generation stream failed: ${error.message}`);
+      if (error?.name === 'AbortError' || error?.code === 'ERR_CANCELED') throw error;
 
-      // Natural fallback — NO "Aapne kaha", NO transcript repeat
-      const fallbackText = language === 'hi-IN' || language === 'hinglish'
-        ? `Ji bilkul, main aapki poori madad karne ke liye tayyar hoon. Kripya batayein aap kya janna chahte hain?`
-        : `I'm here to help you. Could you please tell me more about what you need?`;
-      
+      this.logger.error(`AI generation stream failed: ${error.message}`);
+      const fallbackText =
+        language === 'hi-IN' || language === 'hinglish'
+          ? 'Ji bilkul, main aapki poori madad karne ke liye tayyar hoon. Kripya batayein aap kya janna chahte hain?'
+          : "I'm here to help you. Could you please tell me more about what you need?";
+
       onChunk(fallbackText);
-      return {
-        content: fallbackText,
-        latencyMs: 0,
-        model: 'fallback',
-      };
+      return { content: fallbackText, latencyMs: 0, model: 'fallback' };
     }
   }
 }
