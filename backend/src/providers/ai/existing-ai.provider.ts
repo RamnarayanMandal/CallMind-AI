@@ -22,7 +22,7 @@ export class ExistingAiProvider implements IAiProvider {
             model: 'gpt-4o-mini',
             messages,
             temperature,
-            max_tokens: 500,
+            max_tokens: 150,
           },
           {
             headers: {
@@ -60,7 +60,7 @@ export class ExistingAiProvider implements IAiProvider {
             model: 'sarvam-30b',
             messages,
             temperature,
-            max_tokens: 500,
+            max_tokens: 150,
           },
           {
             headers: {
@@ -137,7 +137,7 @@ export class ExistingAiProvider implements IAiProvider {
             model: 'gpt-4o-mini',
             messages,
             temperature,
-            max_tokens: 500,
+            max_tokens: 150,
             stream: true,
           },
           {
@@ -212,7 +212,7 @@ export class ExistingAiProvider implements IAiProvider {
             model: 'sarvam-30b',
             messages,
             temperature,
-            max_tokens: 500,
+            max_tokens: 150,
             stream: true,
           },
           {

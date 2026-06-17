@@ -19,8 +19,10 @@ export class MailService {
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
     const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
-    if (!clientId || !clientSecret || !refreshToken) {
-      this.logger.warn('Missing Google OAuth2 credentials in environment variables');
+    if (!clientId || !clientSecret || !refreshToken || !process.env.SMTP_USER) {
+      this.logger.warn('Missing Google OAuth2/SMTP credentials. Emails will be skipped.');
+      this.transporter = null;
+      return;
     }
 
     this.auth = new google.auth.OAuth2(clientId, clientSecret);
@@ -40,10 +42,18 @@ export class MailService {
     this.logger.log(`EmailService initialized for: ${process.env.SMTP_USER}`);
   }
 
+  private async sendOrSkip(mailOptions: nodemailer.SendMailOptions) {
+    if (!this.transporter) {
+      this.logger.warn('SMTP not configured — skipping email');
+      return;
+    }
+    await this.transporter.sendMail(mailOptions);
+  }
+
   async sendVerificationEmail(email: string, token: string) {
     const url = `${process.env.FRONTEND_URL}/auth/verify?token=${token}`;
 
-    await this.transporter.sendMail({
+    await this.sendOrSkip({
       from: `"${this.companyName}" <${process.env.SMTP_USER}>`,
       to: email,
       subject: 'Verify your email address',
@@ -57,7 +67,7 @@ export class MailService {
   }
 
   async sendVerificationOtp(email: string, otp: string) {
-    await this.transporter.sendMail({
+    await this.sendOrSkip({
       from: `"${this.companyName}" <${process.env.SMTP_USER}>`,
       to: email,
       subject: 'Your OTP Verification Code',
@@ -78,7 +88,7 @@ export class MailService {
   }
 
   async sendContactNotification(adminEmail: string, contact: { name: string; email: string; phone: string; subject: string; message: string }) {
-    await this.transporter.sendMail({
+    await this.sendOrSkip({
       from: `"${this.companyName}" <${process.env.SMTP_USER}>`,
       to: adminEmail,
       subject: `New Contact: ${contact.subject}`,
@@ -102,7 +112,7 @@ export class MailService {
   }
 
   async sendForgotPasswordOtp(email: string, otp: string) {
-    await this.transporter.sendMail({
+    await this.sendOrSkip({
       from: `"${this.companyName}" <${process.env.SMTP_USER}>`,
       to: email,
       subject: 'Reset Your Password - OTP Code',

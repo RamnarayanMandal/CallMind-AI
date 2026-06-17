@@ -32,6 +32,9 @@ export function useCalls(organizationId: string, page = 1, limit = 10, search?: 
       queryClient.invalidateQueries({ queryKey: ['calls', organizationId] });
       toast.success('Call execution triggered');
     },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message || 'Failed to execute call');
+    },
   });
 
   return {

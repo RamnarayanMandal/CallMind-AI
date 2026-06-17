@@ -175,7 +175,7 @@ export class VobizCallController {
     const speak = speakFirst
       ? `  <Speak language="hi-IN">${this.escapeXml(speakFirst)}</Speak>\n`
       : '';
-    return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n${speak}  <Record action="${baseUrl}/api/v1/telephony/vobiz/recording" maxLength="15" playBeep="false" redirect="true" />\n</Response>`;
+    return `<?xml version="1.0" encoding="UTF-8"?>\n<Response>\n${speak}  <Record action="${baseUrl}/api/v1/telephony/vobiz/recording" maxLength="8" playBeep="false" redirect="true" />\n</Response>`;
   }
 
   private escapeXml(text: string): string {

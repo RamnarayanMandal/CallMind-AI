@@ -18,7 +18,8 @@ import {
   Globe,
   Building2,
   MessageSquare,
-  Bot
+  Bot,
+  Phone
 } from "lucide-react";
 import { Button } from "../ui/button";
 
@@ -26,6 +27,7 @@ const adminNav = [
   { name: 'Dashboard', href: '/admin', icon: LayoutDashboard },
   { name: 'Organizations', href: '/admin/organizations', icon: Building2 },
   { name: 'My Organizations', href: '/admin/my-organizations', icon: Building2 },
+  {name:"Call History",herf:"/admin/call-history", icon:Phone},
   {name: 'My Agents', href: '/admin/agents', icon: Bot },
   { name: 'Users', href: '/admin/users', icon: Users },
   { name: 'Contact Messages', href: '/admin/contact-us', icon: MessageSquare },
@@ -73,9 +75,7 @@ export function AdminSidebar({
         
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
           {adminNav.map((item) => {
-            const isActive = item.href === '/admin'
-              ? pathname === '/admin'
-              : pathname.startsWith(item.href);
+            const isActive = pathname === item.href;
             const Icon = item.icon;
             
             return (

@@ -42,7 +42,7 @@ export class SarvamAiProvider implements IAiProvider {
           model: 'sarvam-30b',
           messages: sanitisedMessages,
           temperature,
-          max_tokens: 500,
+          max_tokens: 150,
         },
         {
           headers: {
@@ -107,7 +107,7 @@ export class SarvamAiProvider implements IAiProvider {
           model: 'sarvam-30b',
           messages: sanitisedMessages,
           temperature,
-          max_tokens: 500,
+          max_tokens: 150,
           stream: true,
         },
         {

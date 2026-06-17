@@ -162,21 +162,23 @@ export class VobizLiveCallService {
     const systemPrompt  = session?.systemPrompt  || 'You are a helpful voice assistant.';
     const agentContext  = session?.agentContext  || {};
 
+    const turnStart = Date.now();
     this.logger.log(`[STT_STARTED] callId=${callUuid} url=${recordingUrl}`);
     let audioBuffer: Buffer;
     try {
       audioBuffer = await this.downloadAudio(recordingUrl, orgContext);
-      this.logger.log(`[STT_AUDIO_FETCHED] callId=${callUuid} size=${audioBuffer.length} bytes`);
+      this.logger.log(`[STT_AUDIO_FETCHED] callId=${callUuid} size=${audioBuffer.length} bytes download=${Date.now()-turnStart}ms`);
     } catch (err) {
       this.logger.error(`[STT_DOWNLOAD_ERROR] ${err.message}`);
       return this.buildRecordXml('Maafi chahti hoon, audio nahi mila. Kripya dobara bolein.');
     }
 
     // 2. Speech-to-Text
+    const sttStart = Date.now();
     let userText = '';
     try {
       userText = await this.whisperService.transcribeAudio(audioBuffer);
-      this.logger.log(`[STT_COMPLETED] callId=${callUuid} transcript="${userText}"`);
+      this.logger.log(`[STT_COMPLETED] callId=${callUuid} transcript="${userText}" stt=${Date.now()-sttStart}ms`);
     } catch (err) {
       this.logger.error(`[STT_ERROR] ${err.message}`);
       return this.buildRecordXml('Maafi chahti hoon, main sun nahi payi. Kripya dobara bolein.');
@@ -192,6 +194,7 @@ export class VobizLiveCallService {
     const priorHistory = await this.conversationMemory.getConversationMemory(callUuid);
 
     // 5. LLM response
+    const llmStart = Date.now();
     this.logger.log(`[LLM_STARTED] callId=${callUuid} historyTurns=${priorHistory.length}`);
     let aiText = '';
     try {
@@ -202,7 +205,7 @@ export class VobizLiveCallService {
         agentContext,
         orgContext,
       );
-      this.logger.log(`[LLM_RESPONSE] callId=${callUuid} text="${aiText.substring(0, 80)}"`);
+      this.logger.log(`[LLM_RESPONSE] callId=${callUuid} text="${aiText.substring(0, 80)}" llm=${Date.now()-llmStart}ms`);
     } catch (err) {
       this.logger.error(`[LLM_ERROR] ${err.message}`);
       aiText = 'Ji zaroor, main samajh gayi. Kya aap thoda aur bata sakte hain?';
@@ -215,7 +218,8 @@ export class VobizLiveCallService {
     ]);
 
     // 7. Return PlivoXML: Speak AI response + record next turn
-    this.logger.log(`[AUDIO_STREAM_STARTED] callId=${callUuid} speaking="${aiText.substring(0, 80)}"`);
+    const totalTurn = Date.now() - turnStart;
+    this.logger.log(`[TURN_COMPLETED] callId=${callUuid} total=${totalTurn}ms`);
     return this.buildRecordXml(aiText);
   }
 
@@ -289,7 +293,7 @@ export class VobizLiveCallService {
 
     const response = await axios.get(url, {
       responseType: 'arraybuffer',
-      timeout: 15000,
+      timeout: 6000,
       headers: {
         'User-Agent': 'CallMind-AI/1.0',
         'X-Auth-ID': accountId,
@@ -317,7 +321,7 @@ export class VobizLiveCallService {
       `  <Record`,
       `    action="${recordUrl}"`,
       `    method="POST"`,
-      `    maxLength="15"`,
+      `    maxLength="8"`,
       `    playBeep="false"`,
       `    redirect="true"`,
       `    recordSession="false"`,
