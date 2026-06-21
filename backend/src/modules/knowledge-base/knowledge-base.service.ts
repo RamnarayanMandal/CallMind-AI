@@ -1,9 +1,10 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { KnowledgeBase, KnowledgeBaseDocument } from './schemas/knowledge-base.schema';
+import { KnowledgeBase, KnowledgeBaseDocument, KnowledgeBaseType, KnowledgeSourceType } from './schemas/knowledge-base.schema';
 import { CreateKnowledgeBaseDto, UpdateKnowledgeBaseDto } from './dto/knowledge-base.dto';
 import { RedisService } from '../redis/redis.service';
+import * as pdfParse from 'pdf-parse';
 
 @Injectable()
 export class KnowledgeBaseService {
@@ -40,6 +41,39 @@ export class KnowledgeBaseService {
     }
     await this.model.deleteOne({ _id: id });
     await this.invalidateOrgFaqCache(item.organizationId);
+  }
+
+  async parsePdf(organizationId: string, fileBuffer: Buffer, originalName: string): Promise<void> {
+    try {
+      const pdfParse = require('pdf-parse');
+      const data = await pdfParse(fileBuffer);
+      const content = data.text;
+      
+      // Simple chunking (split by double newlines or large chunks)
+      // In a real implementation, you'd use a better text splitter (e.g., Langchain's RecursiveCharacterTextSplitter)
+      const chunks = content.split(/\n\s*\n/).filter(c => c.trim().length > 50);
+
+      // Save each chunk as a document in KB
+      const docsToSave = chunks.map((chunk, index) => ({
+        organizationId,
+        type: KnowledgeBaseType.DOCUMENT,
+        title: `${originalName} - Part ${index + 1}`,
+        content: chunk.trim(),
+        sourceType: KnowledgeSourceType.PDF,
+        fileName: originalName,
+        priority: 2, // PDFs have lower priority than FAQs by default
+        isActive: true,
+      }));
+
+      if (docsToSave.length > 0) {
+        await this.model.insertMany(docsToSave);
+        await this.invalidateOrgFaqCache(organizationId);
+        this.logger.log(`Parsed PDF ${originalName} into ${docsToSave.length} chunks for org=${organizationId}`);
+      }
+    } catch (error: any) {
+      this.logger.error(`Failed to parse PDF: ${error.message}`);
+      throw new Error(`Failed to process PDF file: ${error.message}`);
+    }
   }
 
   async findByOrg(organizationId: string): Promise<KnowledgeBaseDocument[]> {

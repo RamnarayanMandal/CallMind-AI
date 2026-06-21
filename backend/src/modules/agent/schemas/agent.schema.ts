@@ -64,6 +64,37 @@ export class Agent {
   @Prop({ trim: true })
   systemPrompt?: string;
 
+  // Tool enablement — list of tool names this agent can call
+  @Prop({ type: [String], default: [] })
+  enabledTools: string[];
+
+  // Personality
+  @Prop({ trim: true })
+  welcomeMessage?: string; // First thing agent says
+
+  @Prop({ trim: true })
+  persona?: string; // "You are Priya, a helpful support agent for..."
+
+  @Prop({ trim: true })
+  fallbackMessage?: string; // When agent doesn't know
+
+  // Business goal
+  @Prop({ trim: true, enum: ['support', 'sales', 'appointment', 'followup', 'general'], default: 'general' })
+  businessGoal?: string;
+
+  // Behavior flags
+  @Prop({ default: true })
+  enableHumanEscalation: boolean;
+
+  @Prop({ default: true })
+  enableLeadCapture: boolean;
+
+  @Prop({ default: true })
+  enableCallTranscript: boolean;
+
+  @Prop({ default: 600 })
+  maxCallDurationSeconds?: number;
+
   @Prop({ type: String, ref: 'Organization', required: true, index: true })
   organizationId: string;
 

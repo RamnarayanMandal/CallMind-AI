@@ -11,9 +11,9 @@ export class CreateOrganizationDto {
   @IsString() @IsNotEmpty()
   about: string;
 
-  @ApiProperty({ example: 'AI voice calling, customer support automation, lead follow-up systems.' })
-  @IsString() @IsNotEmpty()
-  productInfo: string;
+  @ApiPropertyOptional({ example: 'AI voice calling, customer support automation, lead follow-up systems.' })
+  @IsOptional() @IsString()
+  productInfo?: string;
 
   @ApiPropertyOptional({ example: 'Small and medium businesses in retail, healthcare, and finance.' })
   @IsOptional() @IsString()
@@ -38,6 +38,25 @@ export class CreateOrganizationDto {
   @ApiPropertyOptional({ example: 'https://bivhatechnologies.com' })
   @IsOptional() @IsString()
   website?: string;
+
+  @ApiPropertyOptional() @IsOptional() @IsString() email?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() phoneNumber?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() address?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() industryCategory?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() workingHours?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() supportHours?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() escalationNumber?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() escalationEmail?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() logoUrl?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() tagline?: string;
+  @ApiPropertyOptional() @IsOptional() brandColors?: { primary?: string; secondary?: string };
+  @ApiPropertyOptional() @IsOptional() @IsString() defaultLanguage?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() defaultWelcomeMessage?: string;
+  @ApiPropertyOptional() @IsOptional() productsAndServices?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsString() returnPolicy?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() shippingPolicy?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() refundPolicy?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() pricingInfo?: string;
 }
 
 export class UpdateOrganizationDto extends PartialType(CreateOrganizationDto) {}

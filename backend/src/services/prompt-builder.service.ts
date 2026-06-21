@@ -10,6 +10,12 @@ export interface OrgContext {
   supportInstructions?: string;
   tone?: string;
   website?: string;
+  workingHours?: string;
+  supportHours?: string;
+  returnPolicy?: string;
+  shippingPolicy?: string;
+  refundPolicy?: string;
+  escalationNumber?: string;
 }
 
 export interface AgentContext {
@@ -26,13 +32,18 @@ export interface BuiltPrompt {
   conversationGuide: string;
 }
 
+export interface BuildOptions {
+  toolSchemas?: any[];       // LLM function schemas for enabled tools
+  kbQuickFacts?: string[];   // Pre-loaded top KB answers for the system prompt
+}
+
 @Injectable()
 export class PromptBuilderService {
   private readonly logger = new Logger(PromptBuilderService.name);
 
   /** Master entry point — returns all prompt variants */
-  build(org: OrgContext, agent: AgentContext): BuiltPrompt {
-    const systemPrompt      = this.buildSystemPrompt(org, agent);
+  build(org: OrgContext, agent: AgentContext, options?: BuildOptions): BuiltPrompt {
+    const systemPrompt      = this.buildSystemPrompt(org, agent, options);
     const introPrompt       = this.buildIntroPrompt(org, agent);
     const conversationGuide = this.buildConversationGuide(org, agent);
     return { systemPrompt, introPrompt, conversationGuide };
@@ -41,7 +52,7 @@ export class PromptBuilderService {
   // ─────────────────────────────────────────────────────────
   //  SYSTEM PROMPT  (stored in DB, loaded every LLM call)
   // ─────────────────────────────────────────────────────────
-  buildSystemPrompt(org: OrgContext, agent: AgentContext): string {
+  buildSystemPrompt(org: OrgContext, agent: AgentContext, options?: BuildOptions): string {
     const genderPronoun = agent.gender === 'male' ? 'he/him' : 'she/her';
     const tone          = this.resolveTone(agent.tone || org.tone);
     const langInstruct  = this.buildLanguageInstruction(agent.language);
@@ -62,6 +73,14 @@ export class PromptBuilderService {
       ``,
       org.targetAudience ? `## TARGET AUDIENCE\n${org.targetAudience}\n` : '',
       org.businessGoals  ? `## BUSINESS GOALS\n${org.businessGoals}\n` : '',
+      `## POLICIES & OPERATIONS`,
+      org.workingHours ? `- Working Hours: ${org.workingHours}` : '',
+      org.supportHours ? `- Support Hours: ${org.supportHours}` : '',
+      org.returnPolicy ? `- Return Policy: ${org.returnPolicy}` : '',
+      org.shippingPolicy ? `- Shipping Policy: ${org.shippingPolicy}` : '',
+      org.refundPolicy ? `- Refund Policy: ${org.refundPolicy}` : '',
+      org.escalationNumber ? `- Escalation Number: ${org.escalationNumber}` : '',
+      ``,
       `## COMMUNICATION RULES`,
       langInstruct,
       `- Tone must always be: ${tone}.`,
@@ -88,6 +107,14 @@ export class PromptBuilderService {
       `## FALLBACK RESPONSES`,
       `If you do not know the answer, say: "Main aapko is matter mein help karne ki poori koshish karunga/karungi. Kya aap thoda aur detail de sakte hain?"`,
       `If user is rude, respond calmly: "Main samajhta/samajhti hoon aapka concern. Aapki help karna mera priority hai."`,
+      // Tool Schemas — injected only when tools are enabled for this agent
+      (options?.toolSchemas && options.toolSchemas.length > 0)
+        ? `\n## AVAILABLE TOOLS\nYou have access to the following tools. Call them when the user asks something you can answer with real data:\n${JSON.stringify(options.toolSchemas, null, 2)}`
+        : '',
+      // Knowledge Base quick-facts — pre-loaded for ultra-fast top-of-mind answers
+      (options?.kbQuickFacts && options.kbQuickFacts.length > 0)
+        ? `\n## PRE-LOADED KNOWLEDGE BASE\n${options.kbQuickFacts.join('\n')}\n(Use these facts first before retrieving more context.)`
+        : '',
     ];
 
     return sections.filter(Boolean).join('\n').trim();

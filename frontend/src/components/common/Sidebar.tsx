@@ -14,7 +14,10 @@ import {
   Building2,
   IndianRupee,
   Headphones,
-  User
+  User,
+  BookOpen,
+  Link2,
+  Wrench
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -24,6 +27,9 @@ const menuItems = [
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Call History', href: '/call-history', icon: PhoneCall },
   { name: 'Agents', href: '/agents', icon: Bot },
+  { name: 'Knowledge Base', href: '/organization/knowledge-base', icon: BookOpen },
+  { name: 'Integrations', href: '/organization/integrations', icon: Link2 },
+  { name: 'AI Tools', href: '/organization/tools', icon: Wrench },
   // { name: 'Analytics', href: '/analytics', icon: PieChart },
   { name: 'Campaigns', href: '/campaigns', icon: Calendar },
   { name: 'Recordings', href: '/organization/recordings', icon: Headphones },

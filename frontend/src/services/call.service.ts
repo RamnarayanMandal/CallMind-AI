@@ -12,7 +12,7 @@ export interface CreateCallPayload {
   agentId: string;
   customerId: string;
   organizationId: string;
-  phoneNumber?: string;
+  phoneNumber: string;
   scheduledAt?: string;
 }
 
@@ -55,7 +55,7 @@ export const callService = {
     agentId: string;
     customerId: string;
     organizationId: string;
-    phoneNumber?: string;
+    phoneNumber: string;
     scheduledAt?: string;
   }): Promise<Call> => {
     const { data: result } = await apiClient.post(`/calls`, data);

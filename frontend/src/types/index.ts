@@ -65,6 +65,7 @@ export interface Agent {
   customInstructions?: string;
   generatedSystemPrompt?: string;
   systemPrompt?: string;
+  enabledTools?: string[];
   organizationId: string;
   isActive: boolean;
   createdAt: string;

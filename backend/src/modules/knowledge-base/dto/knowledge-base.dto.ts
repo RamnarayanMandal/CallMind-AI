@@ -1,43 +1,92 @@
-import { IsString, IsNotEmpty, IsOptional, IsArray } from 'class-validator';
-import { ApiProperty } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsOptional, IsArray, IsEnum, IsBoolean, IsNumber } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { KnowledgeBaseType, KnowledgeSourceType } from '../schemas/knowledge-base.schema';
 
 export class CreateKnowledgeBaseDto {
-  @ApiProperty({ description: 'The organization ID this knowledge item belongs to' })
+  @ApiProperty()
   @IsString()
   @IsNotEmpty()
   organizationId: string;
 
-  @ApiProperty({ description: 'The FAQ question or search key' })
+  @ApiPropertyOptional()
   @IsString()
-  @IsNotEmpty()
-  question: string;
-
-  @ApiProperty({ description: 'The detailed answer/response guidelines' })
-  @IsString()
-  @IsNotEmpty()
-  answer: string;
-
-  @ApiProperty({ description: 'Tags for classification and filtering', required: false })
-  @IsArray()
-  @IsString({ each: true })
   @IsOptional()
-  tags?: string[];
-}
+  agentId?: string;
 
-export class UpdateKnowledgeBaseDto {
-  @ApiProperty({ description: 'The FAQ question or search key', required: false })
+  @ApiPropertyOptional({ enum: KnowledgeBaseType })
+  @IsEnum(KnowledgeBaseType)
+  @IsOptional()
+  type?: KnowledgeBaseType;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  title: string;
+
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   question?: string;
 
-  @ApiProperty({ description: 'The detailed answer/response guidelines', required: false })
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   answer?: string;
 
-  @ApiProperty({ description: 'Tags for classification and filtering', required: false })
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  content?: string;
+
+  @ApiPropertyOptional()
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
   tags?: string[];
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  category?: string;
+
+  @ApiPropertyOptional()
+  @IsNumber()
+  @IsOptional()
+  priority?: number;
+
+  @ApiPropertyOptional({ enum: KnowledgeSourceType })
+  @IsEnum(KnowledgeSourceType)
+  @IsOptional()
+  sourceType?: KnowledgeSourceType;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  sourceUrl?: string;
+
+  @ApiPropertyOptional()
+  @IsString()
+  @IsOptional()
+  fileName?: string;
+
+  @ApiPropertyOptional()
+  @IsBoolean()
+  @IsOptional()
+  isActive?: boolean;
+}
+
+export class UpdateKnowledgeBaseDto {
+  @ApiPropertyOptional() @IsString() @IsOptional() agentId?: string;
+  @ApiPropertyOptional({ enum: KnowledgeBaseType }) @IsEnum(KnowledgeBaseType) @IsOptional() type?: KnowledgeBaseType;
+  @ApiPropertyOptional() @IsString() @IsOptional() title?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() question?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() answer?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() content?: string;
+  @ApiPropertyOptional() @IsArray() @IsString({ each: true }) @IsOptional() tags?: string[];
+  @ApiPropertyOptional() @IsString() @IsOptional() category?: string;
+  @ApiPropertyOptional() @IsNumber() @IsOptional() priority?: number;
+  @ApiPropertyOptional({ enum: KnowledgeSourceType }) @IsEnum(KnowledgeSourceType) @IsOptional() sourceType?: KnowledgeSourceType;
+  @ApiPropertyOptional() @IsString() @IsOptional() sourceUrl?: string;
+  @ApiPropertyOptional() @IsString() @IsOptional() fileName?: string;
+  @ApiPropertyOptional() @IsBoolean() @IsOptional() isActive?: boolean;
 }

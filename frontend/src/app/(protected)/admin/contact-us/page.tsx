@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Mail, Loader2, AlertCircle, Search, MessageSquare } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
-import Link from 'next/link';
 import { contactService } from '@/services/contact.service';
 
 const statusColors: Record<string, 'secondary' | 'warning' | 'success' | 'default'> = {
@@ -24,6 +24,7 @@ export default function AdminContactUsPage() {
   const [page, setPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
+  const router = useRouter();
 
   const { data, isLoading, isError, error } = useQuery({
     queryKey: ['contacts', page, statusFilter, search],
@@ -89,7 +90,11 @@ export default function AdminContactUsPage() {
                 </TableHeader>
                 <TableBody>
                   {data?.contacts?.map((contact: any) => (
-                    <TableRow key={contact._id} className="border-slate-800 hover:bg-slate-800/50 cursor-pointer" onClick={() => window.location.href = `/admin/contact-us/${contact._id}`}>
+                    <TableRow
+                      key={contact._id}
+                      className="border-slate-800 hover:bg-slate-800/50 cursor-pointer"
+                      onClick={() => router.push(`/admin/contact-us/${contact._id}`)}
+                    >
                       <TableCell className="text-slate-300 font-medium">{contact.name}</TableCell>
                       <TableCell className="text-slate-400">{contact.email}</TableCell>
                       <TableCell className="text-slate-300 max-w-xs truncate">{contact.subject}</TableCell>
@@ -122,3 +127,5 @@ export default function AdminContactUsPage() {
     </div>
   );
 }
+
+

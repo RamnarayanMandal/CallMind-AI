@@ -8,6 +8,15 @@ export interface CreateAgentPayload {
   language?: string;
   customInstructions?: string;
   systemPrompt?: string;
+  enabledTools?: string[];
+  welcomeMessage?: string;
+  persona?: string;
+  fallbackMessage?: string;
+  businessGoal?: string;
+  enableHumanEscalation?: boolean;
+  enableLeadCapture?: boolean;
+  enableCallTranscript?: boolean;
+  maxCallDurationSeconds?: number;
   organizationId: string;
 }
 

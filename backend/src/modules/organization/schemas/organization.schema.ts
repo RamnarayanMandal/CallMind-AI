@@ -48,6 +48,68 @@ export class Organization {
   @Prop({ trim: true })
   website?: string;
 
+  // Extended Contact
+  @Prop({ trim: true })
+  email?: string;
+
+  @Prop({ trim: true })
+  phoneNumber?: string;
+
+  @Prop({ trim: true })
+  address?: string;
+
+  // Industry
+  @Prop({ trim: true })
+  industryCategory?: string; // Sub-category e.g. 'fashion', 'electronics'
+
+  // Business hours
+  @Prop({ trim: true })
+  workingHours?: string; // "Mon-Sat 9AM-6PM IST"
+
+  @Prop({ trim: true })
+  supportHours?: string;
+
+  // Escalation / Human Handoff
+  @Prop({ trim: true })
+  escalationNumber?: string;
+
+  @Prop({ trim: true })
+  escalationEmail?: string;
+
+  // Branding
+  @Prop({ trim: true })
+  logoUrl?: string;
+
+  @Prop({ trim: true })
+  tagline?: string;
+
+  @Prop({ type: Object })
+  brandColors?: { primary?: string; secondary?: string };
+
+  // Agent defaults
+  @Prop({ trim: true })
+  defaultLanguage?: string; // 'hi-IN' | 'en-IN' | 'hinglish'
+
+  @Prop({ trim: true })
+  defaultWelcomeMessage?: string;
+
+  // Products as structured array
+  @Prop({ type: [String], default: [] })
+  productsAndServices?: string[];
+
+  // Policies
+  @Prop({ trim: true })
+  returnPolicy?: string;
+
+  @Prop({ trim: true })
+  shippingPolicy?: string;
+
+  @Prop({ trim: true })
+  refundPolicy?: string;
+
+  @Prop({ trim: true })
+  pricingInfo?: string;
+
   @Prop({ type: String, ref: 'User', required: true, index: true })
   ownerId: string;
 

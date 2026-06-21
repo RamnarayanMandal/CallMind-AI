@@ -28,6 +28,8 @@ import { RedisModule } from './modules/redis/redis.module';
 import { KnowledgeBaseModule } from './modules/knowledge-base/knowledge-base.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { ContactModule } from './modules/contact/contact.module';
+import { IntegrationModule } from './modules/integration/integration.module';
+import { ToolModule } from './modules/tool/tool.module';
 
 @Module({
   imports: [
@@ -97,6 +99,8 @@ import { ContactModule } from './modules/contact/contact.module';
     ActionModule,
     NotificationModule,
     ContactModule,
+    IntegrationModule,
+    ToolModule,
   ],
   providers: [
     {

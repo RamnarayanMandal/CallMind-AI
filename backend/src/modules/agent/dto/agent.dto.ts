@@ -37,6 +37,16 @@ export class CreateAgentDto {
   @IsOptional() @IsString()
   systemPrompt?: string;
 
+  @ApiPropertyOptional() @IsOptional() enabledTools?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsString() welcomeMessage?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() persona?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() fallbackMessage?: string;
+  @ApiPropertyOptional() @IsOptional() @IsString() businessGoal?: string;
+  @ApiPropertyOptional() @IsOptional() enableHumanEscalation?: boolean;
+  @ApiPropertyOptional() @IsOptional() enableLeadCapture?: boolean;
+  @ApiPropertyOptional() @IsOptional() enableCallTranscript?: boolean;
+  @ApiPropertyOptional() @IsOptional() maxCallDurationSeconds?: number;
+
   @ApiProperty()
   @IsString() @IsNotEmpty()
   organizationId: string;
