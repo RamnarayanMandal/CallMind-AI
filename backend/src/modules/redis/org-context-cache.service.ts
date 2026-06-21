@@ -79,6 +79,7 @@ export class OrgContextCacheService {
     agentId: string,
     orgContext: any,
     agentContext: any,
+    toolSchemas?: any[],
   ): Promise<CompiledOrgProfile> {
     const built = this.promptBuilder.build(
       {
@@ -99,6 +100,7 @@ export class OrgContextCacheService {
         language: agentContext.language || 'hi-IN',
         customInstructions: agentContext.customInstructions || '',
       },
+      { toolSchemas }
     );
 
     const profile: CompiledOrgProfile = {

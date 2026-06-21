@@ -5,7 +5,9 @@ export class ResponseSanitizerService {
   private readonly logger = new Logger(ResponseSanitizerService.name);
 
   sanitize(rawResponse: string): string {
-    if (!rawResponse) return '';
+    if (!rawResponse) {
+      return 'Ji bilkul, main aapki madad karne ke liye tayyar hoon.';
+    }
 
     let cleaned = rawResponse;
 

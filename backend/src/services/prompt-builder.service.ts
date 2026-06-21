@@ -109,7 +109,14 @@ export class PromptBuilderService {
       `If user is rude, respond calmly: "Main samajhta/samajhti hoon aapka concern. Aapki help karna mera priority hai."`,
       // Tool Schemas — injected only when tools are enabled for this agent
       (options?.toolSchemas && options.toolSchemas.length > 0)
-        ? `\n## AVAILABLE TOOLS\nYou have access to the following tools. Call them when the user asks something you can answer with real data:\n${JSON.stringify(options.toolSchemas, null, 2)}`
+        ? `\n## AVAILABLE TOOLS\nYou have access to the following tools. Call them when the user asks something you can answer with real data.
+CRITICAL: To call a tool, you MUST output exactly this format on its own line:
+[TOOL_CALL: tool_name {"parameter": "value"}]
+For example: [TOOL_CALL: search_products {"query": "apple"}]
+Do NOT output anything else when calling a tool.
+
+Available tools:
+${JSON.stringify(options.toolSchemas, null, 2)}`
         : '',
       // Knowledge Base quick-facts — pre-loaded for ultra-fast top-of-mind answers
       (options?.kbQuickFacts && options.kbQuickFacts.length > 0)

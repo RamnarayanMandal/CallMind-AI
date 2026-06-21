@@ -44,10 +44,21 @@ export default function ToolsPage() {
   const handleSaveTool = async (data: Partial<Tool>) => {
     try {
       if (selectedTool) {
-        await updateTool({ id: selectedTool._id, data });
+        // Strip out fields not allowed in UpdateToolDto
+        const { displayName, description, category, parameters, integrationId, endpoint, method, parameterMapping, responseMapping, responseTemplate, isActive } = data;
+        const updateData = { displayName, description, category, parameters, integrationId, endpoint, method, parameterMapping, responseMapping, responseTemplate, isActive };
+        // Remove undefined fields
+        Object.keys(updateData).forEach(key => updateData[key as keyof typeof updateData] === undefined && delete updateData[key as keyof typeof updateData]);
+
+        await updateTool({ id: selectedTool._id, data: updateData });
         toast.success('Tool updated successfully');
       } else {
-        await createTool(data);
+        // name is required for create, plus other fields
+        const { name, displayName, description, category, parameters, integrationId, endpoint, method, parameterMapping, responseMapping, responseTemplate } = data;
+        const createData = { name, displayName, description, category, parameters, integrationId, endpoint, method, parameterMapping, responseMapping, responseTemplate };
+        Object.keys(createData).forEach(key => createData[key as keyof typeof createData] === undefined && delete createData[key as keyof typeof createData]);
+
+        await createTool(createData);
         toast.success('Tool created successfully');
       }
     } catch (error: any) {

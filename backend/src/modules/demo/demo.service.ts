@@ -14,6 +14,7 @@ import { ResponseCompletenessValidatorService } from '../ai/response-completenes
 import { ConversationOrchestratorService } from '../ai/conversation-orchestrator.service';
 import { ConversationMemoryService } from '../conversation/conversation-memory.service';
 import { LlmMessage } from '@providers/ai/ai.provider';
+import { ToolService } from '../tool/tool.service';
 
 export interface DemoSession {
   agentId: string;
@@ -57,6 +58,7 @@ export class DemoService {
     private readonly completenessValidator: ResponseCompletenessValidatorService,
     private readonly orchestrator: ConversationOrchestratorService,
     private readonly conversationMemory: ConversationMemoryService,
+    private readonly toolService: ToolService,
   ) {}
 
   // ─────────────────────────────────────────────────────────────────────────────
@@ -105,6 +107,30 @@ export class DemoService {
       this.logger.warn(`[${clientId}] Profile load failed for agent ${agentId}: ${e.message}`);
     }
 
+    // ── Inject tool schemas into system prompt ────────────────────────────
+    const enabledTools: string[] = agentContext?.enabledTools || [];
+    if (enabledTools.length > 0) {
+      const orgId = agentContext?.organizationId?.toString() || orgContext?._id?.toString();
+      if (orgId) {
+        try {
+          const schemas = await this.toolService.getFunctionSchemas(orgId, enabledTools);
+          if (schemas.length > 0 && !systemPrompt.includes('## AVAILABLE TOOLS')) {
+            systemPrompt += `\n\n## AVAILABLE TOOLS\nYou have access to the following tools. Call them when the user asks something you can answer with real data.
+CRITICAL: To call a tool, you MUST output exactly this format on its own line:
+[TOOL_CALL: tool_name {"parameter": "value"}]
+For example: [TOOL_CALL: search_products {"query": "apple"}]
+Do NOT output anything else when calling a tool.
+
+Available tools:
+${JSON.stringify(schemas, null, 2)}`;
+            this.logger.log(`[${clientId}] Injected ${schemas.length} tool schemas into system prompt`);
+          }
+        } catch (err) {
+          this.logger.warn(`[${clientId}] Failed to load tool schemas: ${err.message}`);
+        }
+      }
+    }
+
     // 3. Initialize session with EMPTY history — history starts only after first real user turn
     const sessionKey = `call:${clientId}`;
     const newSession: DemoSession = {
@@ -130,8 +156,7 @@ export class DemoService {
     try {
       emit('processing-status', { status: 'thinking' });
 
-      const introText = await this.sarvamService.generateIntroResponse(
-        introPrompt,
+      const introText = this.sarvamService.generateIntroFromTemplate(
         agentContext,
         orgContext,
       );
@@ -253,10 +278,45 @@ CRITICAL: Keep your response short and conversational (max 2 sentences). Sound n
         turnGuide,
       );
 
+      // ── Intercept Tool Calls ────────────────────────────────────────────────
+      let finalAiResponseText = rawAiResponseText;
+      const toolCallMatch = rawAiResponseText.match(/\[TOOL_CALL:\s*([^\s\]]+)\s+(.*?)\]/is);
+      if (toolCallMatch) {
+        const toolName = toolCallMatch[1].trim();
+        try {
+          const toolArgs = JSON.parse(toolCallMatch[2].trim());
+          this.logger.debug(`[${clientId}] Intercepted tool call: ${toolName} with args: ${JSON.stringify(toolArgs)}`);
+          
+          const orgId = session.orgContext?._id?.toString() || session.orgContext?.id;
+          const result = await this.toolService.execute(toolName, toolArgs, orgId);
+          
+          if (result.success) {
+            finalAiResponseText = result.humanReadable;
+            this.logger.log(`[${clientId}] Tool ${toolName} executed successfully. Human readable: ${finalAiResponseText}`);
+            // Also append the actual data to memory in case the LLM needs to reference it next turn!
+            await this.conversationMemory.appendMessages(clientId, [
+              { role: 'system', content: `[Tool ${toolName} Result]: ${JSON.stringify(result.data)}` }
+            ]);
+          } else {
+            finalAiResponseText = result.humanReadable || 'Sorry, I could not fetch that information.';
+            this.logger.warn(`[${clientId}] Tool ${toolName} failed: ${result.error}`);
+          }
+        } catch (e) {
+          this.logger.error(`[${clientId}] Failed to parse/execute tool call args for ${toolName}: ${e.message}`);
+          finalAiResponseText = "Main abhi ye check nahi kar pa rahi hoon. Kripya thodi der baad try karein.";
+        }
+      }
+
+      // Clean up any remaining tool tags if they leaked
+      finalAiResponseText = finalAiResponseText.replace(/\[TOOL_CALL:.*?\]/gis, '').trim();
+      if (!finalAiResponseText) {
+        finalAiResponseText = "Maine aapki request process kar li hai.";
+      }
+
       // ── Response Completeness Validation & HEAL Sequence ───────────────────
       // Guarantees response never ends cut off, and seamlessly attaches contextual follow-ups!
       const healedResponseText = this.completenessValidator.validateAndHeal(
-        rawAiResponseText,
+        finalAiResponseText,
         orchestratorResult.suggestedFollowUp,
       );
 
